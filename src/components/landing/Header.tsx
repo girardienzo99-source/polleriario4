@@ -1,99 +1,163 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Flame, ShoppingBag, Clock, Phone, MapPin, Lock, MessageCircle } from 'lucide-react';
+import { Menu, ShoppingBag, X, Lock } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
-import { formatARS } from '@/lib/formatters';
+import { whatsappLink } from './business';
+import { useOpenStatus } from './hooks';
+import { WhatsAppIcon, cx } from './ui';
 
-export const Header: React.FC = () => {
-  const { itemCount, total, setIsCartOpen } = useCart();
+const NAV = [
+  { href: '/#carta', label: 'Carta' },
+  { href: '/#promos', label: 'Promos' },
+  { href: '/#fuego', label: 'Nuestro fuego' },
+  { href: '/#como-pedir', label: 'Cómo pedir' },
+  { href: '/#ubicacion', label: 'Ubicación' },
+];
+
+export function Header() {
+  const { itemCount, openCart } = useCart();
+  const status = useOpenStatus();
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [bump, setBump] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!itemCount) return;
+    setBump(true);
+    const t = window.setTimeout(() => setBump(false), 450);
+    return () => window.clearTimeout(t);
+  }, [itemCount]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMobileOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [mobileOpen]);
 
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-charcoal-950/90 border-b border-charcoal-800">
-      {/* Top micro-bar */}
-      <div className="bg-fire-600/15 border-b border-fire-500/20 px-4 py-1.5 text-xs text-charcoal-300">
-        <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 text-fire-400 font-medium">
-              <Clock className="w-3.5 h-3.5" /> Martes a Domingos: 11:30 a 14:30 | 20:00 a 23:30 hs
-            </span>
-            <span className="hidden md:flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-fire-500" /> Av. Marcelo T. de Alvear 840, Río Cuarto
-            </span>
-          </div>
+    <header
+      className={cx(
+        'fixed inset-x-0 top-0 z-40 transition-all duration-500',
+        scrolled || mobileOpen
+          ? 'border-b border-white/[0.06] bg-charcoal-950/80 backdrop-blur-xl backdrop-saturate-150'
+          : 'border-b border-transparent bg-gradient-to-b from-charcoal-950/70 to-transparent',
+      )}
+    >
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-5 sm:h-20 sm:px-8">
+        <a href="/#inicio" className="group flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400" aria-label="Pollería Los Campeones — inicio">
+          <span className="relative grid h-9 w-9 place-items-center rounded-full border border-fire-500/40 bg-gradient-to-br from-fire-600 to-crimson-800 font-display text-lg italic text-white shadow-glow">
+            C
+          </span>
+          <span className="leading-none">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.32em] text-fire-400">Pollería</span>
+            <span className="mt-1 block font-display text-xl font-medium tracking-tight text-bone">Los Campeones</span>
+          </span>
+        </a>
 
-          <div className="flex items-center gap-4">
+        <nav aria-label="Secciones" className="hidden items-center gap-1 lg:flex">
+          {NAV.map(n => (
             <a
-              href="https://wa.me/5493585123456?text=Hola!%20Quiero%20hacer%20un%20pedido%20en%20Poller%C3%ADa%20Los%20Campeones"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 font-semibold transition"
+              key={n.href}
+              href={n.href}
+              className="rounded-full px-3.5 py-2 text-sm font-medium text-charcoal-300 transition hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400"
             >
-              <MessageCircle className="w-3.5 h-3.5" /> Pedidos WhatsApp: +54 9 358 512-3456
+              {n.label}
             </a>
-
-            <Link
-              href="/login"
-              className="flex items-center gap-1 text-charcoal-400 hover:text-charcoal-200 transition text-[11px]"
-              title="Acceso al Sistema Administrativo"
-            >
-              <Lock className="w-3 h-3" /> Administración
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Main navigation */}
-      <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-        {/* Brand */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-fire-500 to-crimson-700 flex items-center justify-center text-white shadow-glow group-hover:scale-105 transition">
-            <Flame className="w-7 h-7" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-black text-xl tracking-tight text-white uppercase font-sans">
-                Pollería <span className="text-fire-500">Los Campeones</span>
-              </span>
-              <span className="bg-fire-600/30 text-fire-400 border border-fire-500/40 text-[10px] font-bold px-1.5 py-0.5 rounded">
-                PRO
-              </span>
-            </div>
-            <p className="text-xs text-charcoal-400 font-medium">Spiedo Criollo & Rotisería • Río Cuarto</p>
-          </div>
-        </Link>
-
-        {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-8 text-sm font-semibold text-charcoal-300">
-          <a href="#menu" className="hover:text-fire-400 transition">Nuestro Menú</a>
-          <a href="#promos" className="hover:text-fire-400 transition">Promociones</a>
-          <a href="#combos" className="hover:text-fire-400 transition">Combos Familiares</a>
-          <a href="#ubicacion" className="hover:text-fire-400 transition">Horarios & Ubicación</a>
+          ))}
         </nav>
 
-        {/* Action: Cart Button */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="relative flex items-center gap-3 bg-gradient-to-r from-fire-600 to-crimson-600 hover:from-fire-500 hover:to-crimson-500 text-white px-4 py-2.5 rounded-xl font-bold shadow-glow hover:shadow-glow-lg transition active:scale-95"
-            aria-label="Ver carrito de compras"
-          >
-            <div className="relative">
-              <ShoppingBag className="w-5 h-5" />
-              {itemCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-white text-fire-700 text-xs font-black rounded-full w-5 h-5 flex items-center justify-center shadow-md animate-pulse">
-                  {itemCount}
-                </span>
+        <div className="flex items-center gap-2">
+          {status && (
+            <span
+              className={cx(
+                'hidden items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium xl:inline-flex',
+                status.isOpen ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-white/5 text-charcoal-300',
               )}
-            </div>
-            <div className="hidden sm:block text-left text-xs leading-tight">
-              <div className="text-white/80 font-normal">Mi Pedido</div>
-              <div className="font-black text-sm">{formatARS(total)}</div>
-            </div>
+            >
+              <span className={cx('h-1.5 w-1.5 rounded-full', status.isOpen ? 'animate-pulse bg-emerald-400' : 'bg-charcoal-500')} />
+              {status.label}
+            </span>
+          )}
+          <a
+            href={whatsappLink('Hola Los Campeones, quiero hacer una consulta.')}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Escribinos por WhatsApp"
+            className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-bone transition hover:border-emerald-400/40 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400"
+          >
+            <WhatsAppIcon className="h-[18px] w-[18px]" />
+          </a>
+          <button
+            type="button"
+            onClick={openCart}
+            aria-label={itemCount ? `Abrir carrito, ${itemCount} ${itemCount === 1 ? 'producto' : 'productos'}` : 'Abrir carrito, vacío'}
+            className="relative inline-flex h-10 items-center gap-2 rounded-full bg-fire-600 pl-3.5 pr-4 text-sm font-semibold text-white shadow-glow transition hover:bg-fire-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-300 focus-visible:ring-offset-2 focus-visible:ring-offset-charcoal-950"
+          >
+            <ShoppingBag className="h-[18px] w-[18px]" aria-hidden="true" />
+            <span className="hidden sm:inline">Mi pedido</span>
+            <span
+              className={cx(
+                'grid h-5 min-w-5 place-items-center rounded-full bg-white px-1.5 text-[11px] font-bold tabular-nums text-fire-700',
+                bump && 'animate-bump',
+              )}
+              aria-hidden="true"
+            >
+              {itemCount}
+            </span>
+          </button>
+          <Link
+            href="/login"
+            className="hidden items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium text-charcoal-500 transition hover:text-charcoal-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400 lg:inline-flex"
+          >
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+            Administración
+          </Link>
+          <button
+            type="button"
+            onClick={() => setMobileOpen(o => !o)}
+            aria-label={mobileOpen ? 'Cerrar menú' : 'Abrir menú'}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
+            className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-bone transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400 lg:hidden"
+          >
+            {mobileOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
           </button>
         </div>
       </div>
+
+      {mobileOpen && (
+        <nav id="mobile-nav" aria-label="Secciones" className="animate-fade-in border-t border-white/[0.06] px-5 pb-6 pt-2 lg:hidden">
+          {status && (
+            <p className={cx('mb-2 flex items-center gap-2 py-2 text-xs font-medium', status.isOpen ? 'text-emerald-300' : 'text-charcoal-400')}>
+              <span className={cx('h-1.5 w-1.5 rounded-full', status.isOpen ? 'bg-emerald-400' : 'bg-charcoal-500')} />
+              {status.label}
+            </p>
+          )}
+          <ul className="divide-y divide-white/[0.06]">
+            {NAV.map(n => (
+              <li key={n.href}>
+                <a href={n.href} onClick={() => setMobileOpen(false)} className="flex items-center justify-between py-3.5 font-display text-2xl text-bone">
+                  {n.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <Link href="/login" className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-charcoal-500 hover:text-charcoal-200">
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+            Administración
+          </Link>
+        </nav>
+      )}
     </header>
   );
-};
+}

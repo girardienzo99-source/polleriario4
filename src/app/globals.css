@@ -47,6 +47,57 @@ body {
   background: #ea580c;
 }
 
+html {
+  scroll-padding-top: 7.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  /* Landing: etiqueta superior de sección */
+  .eyebrow {
+    @apply inline-flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-fire-400;
+  }
+  .eyebrow::before {
+    content: '';
+    @apply h-px w-8 bg-fire-500/70;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-fire-600 px-6 py-3 text-sm font-semibold text-white shadow-glow transition-all duration-300 hover:bg-fire-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400 focus-visible:ring-offset-2 focus-visible:ring-offset-charcoal-950 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-charcoal-800 disabled:text-charcoal-500 disabled:shadow-none;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-bone backdrop-blur transition-all duration-300 hover:border-white/30 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400 focus-visible:ring-offset-2 focus-visible:ring-offset-charcoal-950 active:scale-[0.98];
+  }
+  .field {
+    @apply w-full rounded-xl border border-white/10 bg-charcoal-900/80 px-4 py-3 text-sm text-bone placeholder:text-charcoal-500 transition focus:border-fire-500/70 focus:outline-none focus:ring-2 focus:ring-fire-500/30;
+  }
+  .field-error {
+    @apply border-crimson-500/70 focus:border-crimson-500 focus:ring-crimson-500/30;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Textura sutil de grano para fondos oscuros (sin imágenes externas) */
+  .grain {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+}
+
 /* Thermal Ticket Print Styles */
 @media print {
   body * {

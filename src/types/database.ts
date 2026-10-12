@@ -75,6 +75,8 @@ export interface ProductVariant {
   final_price: number;
   is_default: boolean;
   active: boolean;
+  /** Unidades de stock base que consume la variante (ej. medio pollo = 0.5). Default 1. */
+  stock_units?: number;
 }
 
 export interface Product {
@@ -99,7 +101,33 @@ export interface Product {
   current_stock: number;
   active: boolean;
   variants?: ProductVariant[];
+  /**
+   * Cómo impacta una venta en el inventario:
+   * - batch: se produce por tandas (spiedo). La venta sólo descuenta stock terminado;
+   *   los insumos se descuentan al iniciar la tanda.
+   * - recipe_on_sale: se elabora al momento; la venta consume la receta.
+   * - simple: producto de reventa; la venta descuenta su propio stock.
+   * - none: no controla stock.
+   */
+  stock_mode?: StockMode;
+  /** Componentes de un combo; la venta descuenta stock de cada componente. */
+  combo_items?: { product_id: string; variant_id?: string; quantity: number }[];
   created_at?: string;
+}
+
+export type StockMode = 'batch' | 'recipe_on_sale' | 'simple' | 'none';
+
+export interface InventoryMovement {
+  id: string;
+  item_kind: 'ingredient' | 'product';
+  item_id: string;
+  item_name: string;
+  delta: number;
+  stock_after: number;
+  reason: string;
+  reference?: string;
+  user_name: string;
+  created_at: string;
 }
 
 export interface Ingredient {
@@ -138,6 +166,8 @@ export interface ProductionBatch {
   id: string;
   branch_id: string;
   batch_number: string;
+  /** Producto terminado que genera la tanda (default: pollo al spiedo). */
+  product_id?: string;
   start_time: string;
   estimated_end_time?: string;
   actual_end_time?: string;
@@ -175,6 +205,10 @@ export interface Promotion {
   active_days: number[];
   active_channels: string[];
   image_url?: string;
+  /** Producto real que se agrega al carrito al pedir la promo (combos). */
+  product_id?: string;
+  /** Cupón que aplica la promo en el carrito (promos porcentuales). */
+  coupon_code?: string;
   is_active: boolean;
 }
 
@@ -214,8 +248,20 @@ export interface Order {
   estimated_time?: string;
   notes?: string;
   items: OrderItem[];
+  /** Deltas de inventario aplicados al crear el pedido (se revierten al cancelar). */
+  stock_deltas?: StockDeltaRecord[];
+  cancel_reason?: string;
+  /** Venta generada al cobrar el pedido. */
+  sale_id?: string;
+  created_by?: string;
   created_at: string;
   updated_at?: string;
+}
+
+export interface StockDeltaRecord {
+  kind: 'product' | 'ingredient';
+  id: string;
+  delta: number;
 }
 
 export interface Customer {
@@ -292,9 +338,11 @@ export interface Sale {
   tax_amount: number;
   total: number;
   payment_method: PaymentMethod;
-  fiscal_status: 'no_fiscal' | 'pendiente' | 'autorizado' | 'rechazado';
+  fiscal_status: 'no_fiscal' | 'simulado' | 'pendiente' | 'autorizado' | 'rechazado';
   fiscal_doc_id?: string;
   items: SaleItem[];
+  stock_deltas?: StockDeltaRecord[];
+  user_name?: string;
   created_at: string;
 }
 
@@ -389,7 +437,8 @@ export interface FiscalDocument {
   cae_expiration?: string;
   qr_data?: string;
   qr_url?: string;
-  afip_status: 'autorizado' | 'rechazado' | 'pendiente';
+  /** 'simulado' = generado localmente, SIN validez fiscal (no hubo respuesta de ARCA). */
+  afip_status: 'simulado' | 'autorizado' | 'rechazado' | 'pendiente';
   afip_response?: any;
   created_at: string;
 }

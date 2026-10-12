@@ -24,7 +24,8 @@ export const PromotionsView: React.FC = () => {
     promotional_price: 19900,
     active_days: [0, 1, 2, 3, 4, 5, 6],
     active_channels: ['landing', 'mostrador', 'delivery'],
-    image_url: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80',
+    image_url: '/images/combo-campeon.jpg',
+    coupon_code: '',
     is_active: true,
   });
 
@@ -52,7 +53,9 @@ export const PromotionsView: React.FC = () => {
       promotional_price: Math.max(0, Number(formData.promotional_price) || 0),
       active_days: formData.active_days || [0, 1, 2, 3, 4, 5, 6],
       active_channels: formData.active_channels || ['landing', 'mostrador', 'delivery'],
-      image_url: formData.image_url,
+      image_url: formData.image_url || '/images/combo-campeon.jpg',
+      coupon_code: formData.coupon_code ? formData.coupon_code.toUpperCase().trim() : undefined,
+      product_id: formData.product_id,
       is_active: true,
     };
 
@@ -195,11 +198,23 @@ export const PromotionsView: React.FC = () => {
               </div>
 
               <div>
-                <label className="font-bold text-charcoal-300 block mb-1">URL Imagen</label>
+                <label className="font-bold text-charcoal-300 block mb-1">Código de Cupón Opcional (ej: CAMPEON10)</label>
                 <input
-                  type="url"
+                  type="text"
+                  placeholder="Dejar vacío si es combo automático"
+                  value={formData.coupon_code || ''}
+                  onChange={e => setFormData({ ...formData, coupon_code: e.target.value })}
+                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white uppercase font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-charcoal-300 block mb-1">Imagen (Ruta local o URL)</label>
+                <input
+                  type="text"
                   value={formData.image_url}
                   onChange={e => setFormData({ ...formData, image_url: e.target.value })}
+                  placeholder="/images/combo-campeon.jpg"
                   className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2 text-white"
                 />
               </div>

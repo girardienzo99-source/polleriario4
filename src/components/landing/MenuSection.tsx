@@ -1,279 +1,188 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Flame, 
-  Beef, 
-  UtensilsCrossed, 
-  Salad, 
-  PieChart, 
-  CupSoda, 
-  Sparkles, 
-  Search, 
-  Plus, 
-  Check, 
-  Utensils 
-} from 'lucide-react';
-import { Category, Product, ProductVariant } from '@/types/database';
-import { PolleriaStore } from '@/lib/data/storage';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Search, X } from 'lucide-react';
+import type { Category, Product } from '@/types/database';
 import { useCart } from '@/context/CartContext';
-import { formatARS } from '@/lib/formatters';
+import { isListed } from './availability';
+import { ProductCard } from './ProductCard';
+import { CardSkeleton } from './FeaturedSection';
+import { SectionHeading, cx } from './ui';
 
-const ICON_MAP: Record<string, React.ElementType> = {
-  Flame,
-  Beef,
-  UtensilsCrossed,
-  Salad,
-  PieChart,
-  CupSoda,
-  Sparkles,
-};
+const normalize = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
-export const MenuSection: React.FC = () => {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedVariants, setSelectedVariants] = useState<Record<string, ProductVariant>>({});
-  const [addedItemNotice, setAddedItemNotice] = useState<string | null>(null);
+interface Group {
+  category: Pick<Category, 'id' | 'name' | 'description'>;
+  products: Product[];
+}
 
-  const { addItem } = useCart();
+export function MenuSection() {
+  const { catalog, catalogReady } = useCart();
+  const [query, setQuery] = useState('');
+  const [activeId, setActiveId] = useState<string>('');
+  const tabsRef = useRef<HTMLDivElement>(null);
 
+  const groups = useMemo<Group[]>(() => {
+    const q = normalize(query.trim());
+    const listed = catalog.products.filter(isListed).filter(p => !q || normalize(`${p.name} ${p.description ?? ''}`).includes(q));
+    const cats = catalog.categories.filter(c => c.active).sort((a, b) => a.display_order - b.display_order);
+    const out: Group[] = cats
+      .map(c => ({ category: c, products: listed.filter(p => p.category_id === c.id) }))
+      .filter(g => g.products.length > 0);
+    const orphan = listed.filter(p => !cats.some(c => c.id === p.category_id));
+    if (orphan.length) out.push({ category: { id: 'otros', name: 'Otros', description: undefined }, products: orphan });
+    return out;
+  }, [catalog.products, catalog.categories, query]);
+
+  // Scroll-spy: resalta la categoría visible.
   useEffect(() => {
-    const cats = PolleriaStore.getCategories();
-    const prods = PolleriaStore.getProducts();
-    setCategories(cats);
-    setProducts(prods);
-
-    // Initial default variants
-    const initialVarMap: Record<string, ProductVariant> = {};
-    prods.forEach(p => {
-      if (p.variants && p.variants.length > 0) {
-        const def = p.variants.find(v => v.is_default) || p.variants[0];
-        initialVarMap[p.id] = def;
-      }
+    if (!groups.length) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveId(visible[0].target.id.replace('cat-', ''));
+      },
+      { rootMargin: '-180px 0px -55% 0px', threshold: 0 },
+    );
+    groups.forEach(g => {
+      const el = document.getElementById(`cat-${g.category.id}`);
+      if (el) observer.observe(el);
     });
-    setSelectedVariants(initialVarMap);
+    return () => observer.disconnect();
+  }, [groups]);
 
-    const handleUpdate = () => {
-      setCategories(PolleriaStore.getCategories());
-      setProducts(PolleriaStore.getProducts());
-    };
-    window.addEventListener('polleria_store_updated', handleUpdate);
-    return () => window.removeEventListener('polleria_store_updated', handleUpdate);
-  }, []);
-
-  const handleSelectVariant = (productId: string, variant: ProductVariant) => {
-    setSelectedVariants(prev => ({ ...prev, [productId]: variant }));
-  };
-
-  const handleAddToCart = (product: Product) => {
-    const variant = selectedVariants[product.id];
-    addItem(product, variant, 1);
-    setAddedItemNotice(product.id);
-    setTimeout(() => setAddedItemNotice(null), 1500);
-  };
-
-  const filteredProducts = products.filter(p => {
-    if (!p.active || !p.is_visible_landing) return false;
-    if (selectedCategory !== 'all' && p.category_id !== selectedCategory) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = p.name.toLowerCase().includes(q);
-      const matchDesc = p.description?.toLowerCase().includes(q) || false;
-      if (!matchName && !matchDesc) return false;
+  // Mantener visible la pestaña activa dentro del scroll horizontal.
+  useEffect(() => {
+    const tab = tabsRef.current?.querySelector<HTMLElement>(`[data-cat="${activeId}"]`);
+    if (tab && tabsRef.current) {
+      const c = tabsRef.current;
+      const left = tab.offsetLeft - c.clientWidth / 2 + tab.clientWidth / 2;
+      c.scrollTo({ left, behavior: 'smooth' });
     }
-    return true;
-  });
+  }, [activeId]);
+
+  const goTo = (id: string) => {
+    setActiveId(id);
+    document.getElementById(`cat-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const total = groups.reduce((a, g) => a + g.products.length, 0);
 
   return (
-    <section id="menu" className="py-16 bg-charcoal-950 border-b border-charcoal-800">
-      <div className="max-w-7xl mx-auto px-4">
-        {/* Section title */}
-        <div className="text-center max-w-2xl mx-auto mb-10 space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-fire-600/10 border border-fire-500/20 text-fire-400 text-xs font-bold uppercase tracking-wider">
-            <Utensils className="w-3.5 h-3.5" />
-            Carta Gastronómica
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-            Nuestro Menú y Especialidades
-          </h2>
-          <p className="text-sm text-charcoal-400">
-            Elegí tu comida favorita, agregala al pedido y recibila lista para disfrutar.
-          </p>
-        </div>
-
-        {/* Search bar & Category filters */}
-        <div className="space-y-4 mb-10">
-          {/* Search Input */}
-          <div className="max-w-md mx-auto relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal-400" />
+    <section id="carta" aria-labelledby="carta-title" className="relative border-t border-white/[0.05] bg-charcoal-950 py-24 sm:py-28">
+      <div className="pointer-events-none absolute inset-0 grain opacity-60" aria-hidden="true" />
+      <div className="relative mx-auto max-w-7xl px-5 sm:px-8">
+        <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
+          <SectionHeading
+            id="carta-title"
+            eyebrow="La carta"
+            title="Todo lo que sale"
+            accent="de nuestra cocina"
+            description="Precios actualizados al momento. Si algo se agota, lo vas a ver marcado."
+          />
+          <div className="relative w-full lg:max-w-sm">
+            <label htmlFor="menu-search" className="sr-only">
+              Buscar en la carta
+            </label>
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-500" aria-hidden="true" />
             <input
-              type="text"
-              placeholder="Buscar pollo, milanesa, fritas, bebida..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-charcoal-900 border border-charcoal-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-charcoal-400 focus:outline-none focus:border-fire-500 transition"
+              id="menu-search"
+              type="search"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar: spiedo, milanesa, papas…"
+              className="field rounded-full pl-11 pr-11"
+              autoComplete="off"
             />
-          </div>
-
-          {/* Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none justify-start sm:justify-center">
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition flex items-center gap-2 ${
-                selectedCategory === 'all'
-                  ? 'bg-fire-600 text-white shadow-glow'
-                  : 'bg-charcoal-900 text-charcoal-300 hover:bg-charcoal-800 border border-charcoal-800'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Todos los Platos
-            </button>
-
-            {categories.map(cat => {
-              const IconComp = ICON_MAP[cat.icon || ''] || Utensils;
-              const isSelected = selectedCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition flex items-center gap-2 ${
-                    isSelected
-                      ? 'bg-fire-600 text-white shadow-glow'
-                      : 'bg-charcoal-900 text-charcoal-300 hover:bg-charcoal-800 border border-charcoal-800'
-                  }`}
-                >
-                  <IconComp className="w-3.5 h-3.5" />
-                  {cat.name}
-                </button>
-              );
-            })}
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Limpiar búsqueda"
+                className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-charcoal-400 hover:bg-white/5 hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Product Cards Grid */}
-        {filteredProducts.length === 0 ? (
-          <div className="text-center py-16 bg-charcoal-900/50 rounded-2xl border border-charcoal-800">
-            <Utensils className="w-12 h-12 text-charcoal-500 mx-auto mb-3" />
-            <p className="text-base font-bold text-white">No se encontraron productos</p>
-            <p className="text-xs text-charcoal-400">Probá buscando con otro término o seleccionando otra categoría.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredProducts.map(product => {
-              const hasVariants = product.variants && product.variants.length > 0;
-              const activeVariant = selectedVariants[product.id];
-              const displayPrice = activeVariant ? activeVariant.final_price : product.sale_price;
-              const isRecentlyAdded = addedItemNotice === product.id;
-
-              return (
-                <div
-                  key={product.id}
-                  className="bg-charcoal-900 rounded-2xl overflow-hidden border border-charcoal-800 hover:border-charcoal-700 flex flex-col justify-between transition duration-300 group hover:shadow-xl"
-                >
-                  {/* Image container */}
-                  <div className="relative h-48 w-full overflow-hidden bg-charcoal-950">
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900 via-transparent to-black/30" />
-
-                    {/* Badge */}
-                    {product.is_featured && (
-                      <span className="absolute top-2.5 left-2.5 bg-fire-600/90 backdrop-blur-md text-white font-black text-[10px] uppercase tracking-wider px-2 py-0.5 rounded shadow">
-                        ★ Más pedido
-                      </span>
-                    )}
-
-                    {product.product_type === 'combo' && (
-                      <span className="absolute top-2.5 right-2.5 bg-amberGold-600 text-charcoal-950 font-black text-[10px] uppercase tracking-wider px-2 py-0.5 rounded shadow">
-                        Combo Ahorro
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Body Content */}
-                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                    <div className="space-y-1.5">
-                      <h3 className="font-bold text-base text-white group-hover:text-fire-400 transition">
-                        {product.name}
-                      </h3>
-                      {product.description && (
-                        <p className="text-xs text-charcoal-400 line-clamp-2 leading-relaxed font-normal">
-                          {product.description}
-                        </p>
+      {/* Pestañas de categorías (sticky bajo el header) */}
+      <div className="sticky top-16 z-30 mt-12 border-y border-white/[0.06] bg-charcoal-950/85 backdrop-blur-xl sm:top-20">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8">
+          <nav ref={tabsRef} className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto py-3" aria-label="Categorías de la carta">
+            {catalogReady
+              ? groups.map(g => {
+                  const active = activeId === g.category.id;
+                  return (
+                    <button
+                      key={g.category.id}
+                      type="button"
+                      aria-current={active ? 'true' : undefined}
+                      data-cat={g.category.id}
+                      onClick={() => goTo(g.category.id)}
+                      className={cx(
+                        'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fire-400',
+                        active ? 'bg-bone text-charcoal-950' : 'text-charcoal-300 hover:bg-white/5 hover:text-bone',
                       )}
-                    </div>
+                    >
+                      {g.category.name}
+                      <span className={cx('ml-2 text-xs tabular-nums', active ? 'text-charcoal-500' : 'text-charcoal-600')}>{g.products.length}</span>
+                    </button>
+                  );
+                })
+              : Array.from({ length: 5 }).map((_, i) => <span key={i} className="h-9 w-28 shrink-0 animate-pulse rounded-full bg-charcoal-800" />)}
+          </nav>
+        </div>
+      </div>
 
-                    {/* Variant selector */}
-                    {hasVariants && (
-                      <div className="pt-2">
-                        <label className="text-[11px] font-semibold text-charcoal-400 block mb-1">
-                          Seleccionar tamaño / porción:
-                        </label>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {product.variants!.map(v => (
-                            <button
-                              key={v.id}
-                              type="button"
-                              onClick={() => handleSelectVariant(product.id, v)}
-                              className={`text-[11px] py-1 px-2 rounded-lg font-semibold border transition ${
-                                activeVariant?.id === v.id
-                                  ? 'bg-fire-600/20 border-fire-500 text-fire-300'
-                                  : 'bg-charcoal-800/80 border-charcoal-700 text-charcoal-400 hover:bg-charcoal-700'
-                              }`}
-                            >
-                              {v.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+      <div className="relative mx-auto max-w-7xl px-5 sm:px-8">
+        {query && catalogReady && (
+          <p className="mt-8 text-sm text-charcoal-400" role="status">
+            {total === 0 ? 'Sin resultados' : `${total} ${total === 1 ? 'resultado' : 'resultados'}`} para “{query}”
+          </p>
+        )}
 
-                    {/* Price and Add button */}
-                    <div className="pt-3 border-t border-charcoal-800/80 flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] text-charcoal-400 block">Precio</span>
-                        <span className="text-lg font-black text-white">
-                          {formatARS(displayPrice)}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        disabled={!product.is_available}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition active:scale-95 shadow ${
-                          isRecentlyAdded
-                            ? 'bg-emerald-600 text-white'
-                            : product.is_available
-                            ? 'bg-fire-600 hover:bg-fire-500 text-white shadow-glow'
-                            : 'bg-charcoal-800 text-charcoal-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {isRecentlyAdded ? (
-                          <>
-                            <Check className="w-3.5 h-3.5" /> ¡Agregado!
-                          </>
-                        ) : product.is_available ? (
-                          <>
-                            <Plus className="w-3.5 h-3.5" /> Agregar
-                          </>
-                        ) : (
-                          'Agotado'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+        {!catalogReady && (
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <CardSkeleton key={i} />
+            ))}
           </div>
         )}
+
+        {catalogReady && total === 0 && (
+          <div className="mt-12 rounded-3xl border border-dashed border-white/10 px-6 py-16 text-center">
+            <p className="font-display text-2xl text-bone">No encontramos ese plato.</p>
+            <p className="mt-2 text-sm text-charcoal-400">Probá con otra palabra o mirá la carta completa.</p>
+            {query && (
+              <button type="button" onClick={() => setQuery('')} className="btn-ghost mt-6">
+                Ver toda la carta
+              </button>
+            )}
+          </div>
+        )}
+
+        {catalogReady &&
+          groups.map(g => (
+            <section key={g.category.id} id={`cat-${g.category.id}`} className="scroll-mt-40 pt-14 sm:scroll-mt-44" aria-labelledby={`cat-title-${g.category.id}`}>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-white/[0.06] pb-4">
+                <h3 id={`cat-title-${g.category.id}`} className="font-display text-3xl font-medium text-bone">{g.category.name}</h3>
+                {g.category.description && <p className="text-sm text-charcoal-400">{g.category.description}</p>}
+              </div>
+              <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {g.products.map(p => (
+                  <ProductCard key={p.id} product={p} products={catalog.products} />
+                ))}
+              </div>
+            </section>
+          ))}
       </div>
     </section>
   );
-};
+}

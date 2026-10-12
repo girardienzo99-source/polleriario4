@@ -1,329 +1,138 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Flame, 
-  Plus, 
-  Clock, 
-  CheckCircle2, 
-  AlertTriangle, 
-  User, 
-  Check, 
-  Layers 
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Flame, Plus, CheckCircle2, XCircle, Timer, Drumstick } from 'lucide-react';
 import { ProductionBatch } from '@/types/database';
 import { PolleriaStore } from '@/lib/data/storage';
-import { formatTimeAR } from '@/lib/formatters';
+import { formatDateTimeAR, formatTimeAR } from '@/lib/formatters';
+import { useAuth } from '@/context/AuthContext';
+import { PageHeader, Card, StatCard, Button, Badge, EmptyState, Modal, Field, inputCls, run, useStoreVersion, useNow, Table } from '../ui';
 
 export const ProductionBatchesView: React.FC = () => {
-  const [batches, setBatches] = useState<ProductionBatch[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [rawQuantity, setRawQuantity] = useState(15);
-  const [operator, setOperator] = useState('Carlos Maidana (Spiedo)');
-  const [notes, setNotes] = useState('');
-  const [markReadyBatch, setMarkReadyBatch] = useState<ProductionBatch | null>(null);
-  const [cookedQty, setCookedQty] = useState(15);
-  const [wasteQty, setWasteQty] = useState(0);
+  const v = useStoreVersion();
+  const now = useNow(30_000);
+  const { user } = useAuth();
+  const [starting, setStarting] = useState(false);
+  const [closing, setClosing] = useState<ProductionBatch | null>(null);
+  const [cooked, setCooked] = useState(0);
+  const [cancelling, setCancelling] = useState<ProductionBatch | null>(null);
+  const [reason, setReason] = useState('');
+  const [form, setForm] = useState({ raw: 10, minutes: 80, operator: user?.full_name ?? '', notes: '' });
 
-  const loadBatches = () => {
-    setBatches(PolleriaStore.getBatches());
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const { batches, rawChicken, spiedo, recipe } = useMemo(() => ({
+    batches: PolleriaStore.getBatches(),
+    rawChicken: PolleriaStore.getIngredients().find(i => i.id === 'ing-pollo-crudo'),
+    spiedo: PolleriaStore.getProducts().find(p => p.id === 'prod-spiedo-entero'),
+    recipe: PolleriaStore.getRecipes().find(r => r.product_id === 'prod-spiedo-entero'),
+  }), [v]);
 
-  useEffect(() => {
-    loadBatches();
-    window.addEventListener('polleria_store_updated', loadBatches);
-    return () => window.removeEventListener('polleria_store_updated', loadBatches);
-  }, []);
-
-  const handleStartBatch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newBatch: ProductionBatch = {
-      id: `batch-${Date.now()}`,
-      branch_id: 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e',
-      batch_number: `TANDA-${batches.length + 1}-HOY`,
-      start_time: new Date().toISOString(),
-      estimated_end_time: new Date(Date.now() + 80 * 60 * 1000).toISOString(),
-      raw_chicken_quantity: rawQuantity,
-      cooked_quantity: 0,
-      sold_quantity: 0,
-      leftover_quantity: 0,
-      waste_quantity: 0,
-      status: 'en_horno',
-      operator_name: operator,
-      notes: notes,
-      created_at: new Date().toISOString(),
-    };
-
-    PolleriaStore.saveBatch(newBatch);
-    setShowModal(false);
-    setNotes('');
-  };
-
-  const handleFinishCooking = () => {
-    if (!markReadyBatch) return;
-    PolleriaStore.markBatchReady(markReadyBatch.id, cookedQty, wasteQty);
-    setMarkReadyBatch(null);
-  };
-
-  // Metrics
-  const activeBatchesInOven = batches.filter(b => b.status === 'en_horno');
-  const readyBatches = batches.filter(b => b.status === 'listo');
-  const totalCookedAvailable = readyBatches.reduce((acc, curr) => acc + (curr.cooked_quantity - curr.sold_quantity), 0);
+  const ingredients = PolleriaStore.getIngredients();
+  const inOven = batches.filter(b => b.status === 'en_horno');
+  const todayCooked = batches.filter(b => b.status === 'listo' && new Date(b.created_at).toDateString() === new Date().toDateString()).reduce((a, b) => a + b.cooked_quantity, 0);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-charcoal-900 p-6 rounded-3xl border border-charcoal-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <Flame className="w-6 h-6 text-fire-500" />
-            Producción de Pollos (Spiedo y Horno)
-          </h1>
-          <p className="text-xs text-charcoal-400 mt-1">
-            Gestión de tandas de cocción a fuego lento, stock de pollos listos y mermas
-          </p>
-        </div>
+    <div className="space-y-5">
+      <PageHeader icon={Flame} title="Tandas de producción"
+        subtitle="Al iniciar una tanda se descuentan los insumos de la receta (pollo crudo, adobo…). Al cerrarla, los pollos cocidos pasan a stock terminado. La venta sólo descuenta stock terminado."
+        actions={<Button variant="primary" onClick={() => setStarting(true)}><Plus className="w-4 h-4" /> Iniciar tanda</Button>} />
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-fire-600 to-crimson-600 hover:from-fire-500 hover:to-crimson-500 text-white font-black text-xs rounded-xl shadow-glow transition active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva Tanda de Spiedo
-        </button>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Pollo crudo disponible" value={rawChicken ? `${rawChicken.current_stock} u.` : '—'} icon={Drumstick} tone={rawChicken && rawChicken.current_stock <= rawChicken.min_stock ? 'amber' : 'default'} hint="Insumo (no se vende)" />
+        <StatCard label="Pollos cocidos para vender" value={spiedo ? `${spiedo.current_stock} u.` : '—'} icon={Flame} tone="fire" hint="Stock terminado; medio pollo = 0,5" />
+        <StatCard label="En horno ahora" value={inOven.reduce((a, b) => a + b.raw_chicken_quantity, 0)} icon={Timer} tone="amber" hint={`${inOven.length} tanda(s)`} />
+        <StatCard label="Cocinados hoy" value={todayCooked} icon={CheckCircle2} tone="green" />
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Pollos Listos para la Venta</span>
-          <div className="text-3xl font-black text-emerald-400">{totalCookedAvailable} u.</div>
-          <span className="text-[11px] text-charcoal-400">Disponibles en el mostrador</span>
-        </div>
-
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Tandas al Fuego (Horno/Spiedo)</span>
-          <div className="text-3xl font-black text-fire-400">{activeBatchesInOven.length}</div>
-          <span className="text-[11px] text-charcoal-400">
-            {activeBatchesInOven.reduce((acc, c) => acc + c.raw_chicken_quantity, 0)} pollos cocinándose
-          </span>
-        </div>
-
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Total Horneados en la Jornada</span>
-          <div className="text-3xl font-black text-white">
-            {batches.reduce((acc, c) => acc + c.cooked_quantity, 0)} u.
-          </div>
-          <span className="text-[11px] text-charcoal-400">Cumplimiento de demanda</span>
-        </div>
-      </div>
-
-      {/* Batches Table */}
-      <div className="bg-charcoal-900 rounded-3xl border border-charcoal-800 overflow-hidden">
-        <div className="p-5 border-b border-charcoal-800">
-          <h3 className="font-black text-white text-base">Historial y Control de Tandas</h3>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-charcoal-950 text-charcoal-400 uppercase text-[10px] tracking-wider border-b border-charcoal-800">
-              <tr>
-                <th className="p-3.5">N° Tanda</th>
-                <th className="p-3.5">Hora Inicio</th>
-                <th className="p-3.5">Hora Estimada</th>
-                <th className="p-3.5">Ingresados</th>
-                <th className="p-3.5">Salidos Listos</th>
-                <th className="p-3.5">Vendidos</th>
-                <th className="p-3.5">Mermas</th>
-                <th className="p-3.5">Responsable</th>
-                <th className="p-3.5">Estado</th>
-                <th className="p-3.5 text-right">Acción</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-charcoal-800">
-              {batches.map(batch => (
-                <tr key={batch.id} className="hover:bg-charcoal-800/40 transition">
-                  <td className="p-3.5 font-bold text-white">{batch.batch_number}</td>
-                  <td className="p-3.5 text-charcoal-300">{formatTimeAR(batch.start_time)}</td>
-                  <td className="p-3.5 text-charcoal-300">
-                    {batch.actual_end_time ? (
-                      <span className="text-emerald-400 font-bold">{formatTimeAR(batch.actual_end_time)} (finalizada)</span>
-                    ) : (
-                      formatTimeAR(batch.estimated_end_time)
-                    )}
-                  </td>
-                  <td className="p-3.5 font-bold text-white">{batch.raw_chicken_quantity} u.</td>
-                  <td className="p-3.5 font-black text-emerald-400">
-                    {batch.cooked_quantity > 0 ? `${batch.cooked_quantity} u.` : '-'}
-                  </td>
-                  <td className="p-3.5 text-charcoal-300">{batch.sold_quantity} u.</td>
-                  <td className="p-3.5 text-red-400 font-bold">{batch.waste_quantity} u.</td>
-                  <td className="p-3.5 text-charcoal-300">{batch.operator_name || '-'}</td>
-                  <td className="p-3.5">
-                    <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                      batch.status === 'en_horno'
-                        ? 'bg-fire-600/20 text-fire-400 border border-fire-500/30 animate-pulse'
-                        : batch.status === 'listo'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-charcoal-800 text-charcoal-400'
-                    }`}>
-                      {batch.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="p-3.5 text-right">
-                    {batch.status === 'en_horno' && (
-                      <button
-                        onClick={() => {
-                          setMarkReadyBatch(batch);
-                          setCookedQty(batch.raw_chicken_quantity);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow transition active:scale-95"
-                      >
-                        Marcar Salida
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Start New Batch Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-charcoal-900 border border-charcoal-700 rounded-3xl max-w-md w-full p-6 text-left shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-black text-white flex items-center gap-2">
-              <Flame className="w-5 h-5 text-fire-500" />
-              Iniciar Nueva Tanda de Spiedo
-            </h3>
-            <p className="text-xs text-charcoal-400">
-              Descontará automáticamente los pollos crudos del inventario de insumos.
-            </p>
-
-            <form onSubmit={handleStartBatch} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">
-                  Cantidad de Pollos Crudos a Colocar *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="60"
-                  required
-                  value={rawQuantity}
-                  onChange={e => setRawQuantity(Number(e.target.value))}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white font-black text-base"
-                />
+      {inOven.length > 0 && (
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {inOven.map(b => {
+            const start = new Date(b.start_time).getTime();
+            const end = b.estimated_end_time ? new Date(b.estimated_end_time).getTime() : start + 80 * 60000;
+            const pct = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
+            const remaining = Math.round((end - now) / 60000);
+            return (
+              <div key={b.id} className="rounded-2xl border border-fire-500/30 bg-gradient-to-br from-fire-500/10 to-transparent p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-sm font-black text-white">{b.batch_number}</p>
+                    <p className="text-[11px] text-charcoal-400">{b.raw_chicken_quantity} pollos · {b.operator_name}</p>
+                  </div>
+                  <Badge tone={remaining <= 0 ? 'green' : 'amber'}>{remaining <= 0 ? 'Tiempo cumplido' : `Faltan ${remaining} min`}</Badge>
+                </div>
+                <div className="h-2 rounded-full bg-charcoal-800 overflow-hidden"><div className="h-full bg-gradient-to-r from-amber-500 to-fire-500 transition-all" style={{ width: `${pct}%` }} /></div>
+                <p className="text-[11px] text-charcoal-400">Inicio {formatTimeAR(b.start_time)} · Fin estimado {formatTimeAR(b.estimated_end_time)}</p>
+                <div className="flex gap-2">
+                  <Button variant="success" className="flex-1" onClick={() => { setClosing(b); setCooked(b.raw_chicken_quantity); }}><CheckCircle2 className="w-3.5 h-3.5" /> Cerrar tanda</Button>
+                  <Button variant="ghost" className="text-red-300" onClick={() => { setCancelling(b); setReason(''); }}><XCircle className="w-3.5 h-3.5" /></Button>
+                </div>
               </div>
-
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">
-                  Responsable del Spiedo / Horno *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={operator}
-                  onChange={e => setOperator(e.target.value)}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">
-                  Observaciones de la tanda
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Ej: Fuego medio, leña de quebracho, adobo suave..."
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-charcoal-800 text-charcoal-300 rounded-xl font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-fire-600 hover:bg-fire-500 text-white font-black rounded-xl shadow-glow"
-                >
-                  Confirmar e Ingresar al Horno
-                </button>
-              </div>
-            </form>
-          </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Mark Batch Ready Modal */}
-      {markReadyBatch && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-charcoal-900 border border-charcoal-700 rounded-3xl max-w-md w-full p-6 text-left shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-black text-white flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              Registrar Salida de Cocción ({markReadyBatch.batch_number})
-            </h3>
-            <p className="text-xs text-charcoal-400">
-              Ingresará los pollos terminados al stock disponible para la venta sin volver a descontar materias primas.
-            </p>
+      <Card title="Historial de tandas">
+        <Table head={['Tanda', 'Inicio', 'Crudos', 'Cocidos', 'Desperdicio', 'Responsable', 'Estado']}
+          empty={<EmptyState icon={Flame} title="Todavía no hay tandas registradas" />}>
+          {batches.map(b => (
+            <tr key={b.id} className="text-charcoal-200">
+              <td className="px-5 py-2.5 font-bold text-white">{b.batch_number}</td>
+              <td className="px-5 py-2.5 whitespace-nowrap">{formatDateTimeAR(b.start_time)}</td>
+              <td className="px-5 py-2.5 tabular-nums">{b.raw_chicken_quantity}</td>
+              <td className="px-5 py-2.5 tabular-nums">{b.status === 'listo' ? b.cooked_quantity : '—'}</td>
+              <td className="px-5 py-2.5 tabular-nums">{b.status === 'en_horno' ? '—' : b.waste_quantity}</td>
+              <td className="px-5 py-2.5">{b.operator_name}</td>
+              <td className="px-5 py-2.5"><Badge tone={b.status === 'listo' ? 'green' : b.status === 'en_horno' ? 'amber' : 'red'}>{b.status === 'en_horno' ? 'En horno' : b.status === 'listo' ? 'Lista' : 'Cancelada'}</Badge></td>
+            </tr>
+          ))}
+        </Table>
+      </Card>
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">
-                  Pollos Cocinados Listos Óptimos *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max={markReadyBatch.raw_chicken_quantity}
-                  value={cookedQty}
-                  onChange={e => setCookedQty(Number(e.target.value))}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white font-black text-base"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">
-                  Mermas / Desperdicios / Dañados
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={wasteQty}
-                  onChange={e => setWasteQty(Number(e.target.value))}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white font-black text-base text-red-400"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMarkReadyBatch(null)}
-                  className="px-4 py-2 bg-charcoal-800 text-charcoal-300 rounded-xl font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFinishCooking}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl shadow"
-                >
-                  Guardar y Habilitar Stock
-                </button>
-              </div>
-            </div>
-          </div>
+      <Modal open={starting} onClose={() => setStarting(false)} title="Iniciar tanda de pollos al spiedo"
+        footer={<>
+          <Button variant="ghost" onClick={() => setStarting(false)}>Cancelar</Button>
+          <Button variant="primary" onClick={() => { if (run(() => PolleriaStore.startBatch({ raw_quantity: form.raw, minutes: form.minutes, operator_name: form.operator, notes: form.notes }), 'Tanda iniciada: insumos descontados')) setStarting(false); }}>Iniciar</Button>
+        </>}>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Pollos crudos a hornear" hint={`Disponibles: ${rawChicken?.current_stock ?? 0}`}><input type="number" min={1} value={form.raw} onChange={e => setForm({ ...form, raw: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} className={inputCls} /></Field>
+          <Field label="Tiempo de cocción (min)"><input type="number" min={10} value={form.minutes} onChange={e => setForm({ ...form, minutes: Math.max(10, Number(e.target.value) || 80) })} className={inputCls} /></Field>
+          <Field label="Responsable"><input value={form.operator} onChange={e => setForm({ ...form, operator: e.target.value })} className={inputCls} /></Field>
+          <Field label="Notas"><input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className={inputCls} /></Field>
         </div>
-      )}
+        {recipe && (
+          <div className="mt-4 rounded-xl bg-charcoal-950 border border-charcoal-800 p-3">
+            <p className="text-[11px] font-bold text-charcoal-300 mb-2">Se descontará del inventario:</p>
+            <ul className="text-xs space-y-1">
+              {recipe.items.map(it => {
+                const ing = ingredients.find(i => i.id === it.ingredient_id);
+                const qty = Math.round(it.quantity * form.raw * (1 + it.waste_percentage / 100) * 1000) / 1000;
+                const short = ing && ing.current_stock < qty;
+                return <li key={it.id} className={`flex justify-between ${short ? 'text-red-300' : 'text-charcoal-200'}`}><span>{ing?.name ?? it.ingredient_id}</span><span className="tabular-nums">{qty} {it.unit_measure}{short ? ` (hay ${ing?.current_stock})` : ''}</span></li>;
+              })}
+            </ul>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!closing} onClose={() => setClosing(null)} title={`Cerrar ${closing?.batch_number ?? ''}`} size="sm"
+        footer={<>
+          <Button variant="ghost" onClick={() => setClosing(null)}>Volver</Button>
+          <Button variant="success" onClick={() => { if (closing && run(() => PolleriaStore.markBatchReady(closing.id, cooked), `${cooked} pollos sumados al stock`)) setClosing(null); }}>Confirmar</Button>
+        </>}>
+        <Field label="Pollos cocidos en condiciones de venta" hint={`Entraron ${closing?.raw_chicken_quantity ?? 0}. La diferencia se registra como desperdicio.`}>
+          <input type="number" min={0} max={closing?.raw_chicken_quantity} value={cooked} onChange={e => setCooked(Math.floor(Number(e.target.value) || 0))} className={inputCls} />
+        </Field>
+      </Modal>
+
+      <Modal open={!!cancelling} onClose={() => setCancelling(null)} title={`Cancelar ${cancelling?.batch_number ?? ''}`} size="sm"
+        footer={<>
+          <Button variant="ghost" onClick={() => setCancelling(null)}>Volver</Button>
+          <Button variant="danger" disabled={!reason.trim()} onClick={() => { if (cancelling && run(() => PolleriaStore.cancelBatch(cancelling.id, reason), 'Tanda cancelada')) setCancelling(null); }}>Cancelar tanda</Button>
+        </>}>
+        <p className="text-xs text-charcoal-300 mb-3">Los insumos ya consumidos no vuelven al stock: toda la tanda se registra como desperdicio.</p>
+        <Field label="Motivo"><textarea rows={2} value={reason} onChange={e => setReason(e.target.value)} className={inputCls} /></Field>
+      </Modal>
     </div>
   );
 };

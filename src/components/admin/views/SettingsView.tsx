@@ -17,19 +17,39 @@ import { PolleriaStore } from '@/lib/data/storage';
 import { INITIAL_BUSINESS } from '@/lib/data/mock-data';
 import { formatARS } from '@/lib/formatters';
 
+import { validateCuit } from '@/lib/domain/fiscal';
+
 export const SettingsView: React.FC = () => {
   const [business, setBusiness] = useState<Business>(INITIAL_BUSINESS);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const loadData = () => {
+    setBusiness(PolleriaStore.getBusiness());
+    setZones(PolleriaStore.getDeliveryZones());
+  };
 
   useEffect(() => {
-    setZones(PolleriaStore.getDeliveryZones());
+    loadData();
+    window.addEventListener('polleria_store_updated', loadData);
+    return () => window.removeEventListener('polleria_store_updated', loadData);
   }, []);
 
   const handleSaveStore = (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedNotice('¡Configuración del comercio guardada con éxito!');
-    setTimeout(() => setSavedNotice(null), 3000);
+    setErrorMessage(null);
+    if (!validateCuit(business.cuit)) {
+      setErrorMessage('El CUIT ingresado no es válido según algoritmo Módulo 11 de AFIP/ARCA.');
+      return;
+    }
+    try {
+      PolleriaStore.saveBusiness(business);
+      setSavedNotice('¡Configuración del comercio guardada con éxito en el sistema!');
+      setTimeout(() => setSavedNotice(null), 3000);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error al guardar la configuración');
+    }
   };
 
   const handleResetDemoData = () => {
@@ -68,6 +88,12 @@ export const SettingsView: React.FC = () => {
       {savedNotice && (
         <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl animate-in fade-in">
           {savedNotice}
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold rounded-xl animate-in fade-in">
+          {errorMessage}
         </div>
       )}
 

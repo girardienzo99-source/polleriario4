@@ -9,7 +9,7 @@ VALUES (
   'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
   'Pollería & Rotisería Los Campeones S.R.L.',
   'Pollería Los Campeones',
-  '30-71589412-8',
+  '30-71589412-9',
   'Responsable Inscripto',
   'Av. Marcelo T. de Alvear 840',
   'Río Cuarto',
@@ -67,7 +67,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO fiscal_settings (business_id, cuit, legal_name, fantasy_name, fiscal_address, iva_condition, point_of_sale, start_activity_date, environment)
 VALUES (
   'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
-  '30715894128',
+  '30715894129',
   'Pollería & Rotisería Los Campeones S.R.L.',
   'Pollería Los Campeones',
   'Av. Marcelo T. de Alvear 840, Río Cuarto, Córdoba',

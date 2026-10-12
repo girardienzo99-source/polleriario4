@@ -1,173 +1,128 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  BarChart3, 
-  Download, 
-  TrendingUp, 
-  DollarSign, 
-  ShoppingBag, 
-  PieChart as PieIcon 
-} from 'lucide-react';
-import { 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  CartesianGrid, 
-  PieChart, 
-  Pie, 
-  Cell 
-} from 'recharts';
+import React, { useMemo, useState } from 'react';
+import { BarChart3, Download, TrendingUp, Receipt, Wallet, Sparkles } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { PolleriaStore } from '@/lib/data/storage';
 import { formatARS } from '@/lib/formatters';
+import { lastNDays, filterByDays, summarizeSales, salesSeries, sumExpenses, countByChannel, countOrdersByStatus } from '@/lib/domain/reports';
+import { PageHeader, Card, StatCard, Button, EmptyState, Table, useStoreVersion } from '../ui';
+
+const RANGES = [{ d: 1, l: 'Hoy' }, { d: 7, l: '7 días' }, { d: 30, l: '30 días' }, { d: 90, l: '90 días' }];
+const COLORS = ['#f97316', '#ef4444', '#fbbf24', '#38bdf8', '#a78bfa', '#34d399'];
+const PAY: Record<string, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia', debito: 'Débito', credito: 'Crédito', mercadopago: 'Mercado Pago', mixto: 'Mixto' };
+const CH: Record<string, string> = { landing: 'Web', mostrador: 'Mostrador', whatsapp: 'WhatsApp', telefono: 'Teléfono', interno: 'Interno' };
+
+function downloadCsv(name: string, rows: (string | number)[][]) {
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 export const ReportsView: React.FC = () => {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [sales, setSales] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const v = useStoreVersion();
+  const [range, setRange] = useState(7);
 
-  useEffect(() => {
-    setOrders(PolleriaStore.getOrders());
-    setSales(PolleriaStore.getSales());
-    setProducts(PolleriaStore.getProducts());
-  }, []);
+  const r = useMemo(() => {
+    const days = lastNDays(range);
+    const set = new Set(days);
+    const sales = filterByDays(PolleriaStore.getSales(), set);
+    const orders = filterByDays(PolleriaStore.getOrders(), set);
+    const s = summarizeSales(sales);
+    const expenses = sumExpenses(PolleriaStore.getExpenses(), set);
+    return { days, sales, s, expenses, series: salesSeries(sales, days), channels: countByChannel(orders), status: countOrdersByStatus(orders), ordersCount: orders.length };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v, range]);
 
-  // Top products sales
-  const topProductsData = [
-    { name: 'Pollo al Spiedo', cantidad: 38, total: 551000 },
-    { name: 'Combo Campeón', cantidad: 26, total: 517400 },
-    { name: 'Papas Fritas Grandes', cantidad: 45, total: 202500 },
-    { name: 'Suprema Napolitana', cantidad: 18, total: 207000 },
-    { name: 'Docena Empanadas', cantidad: 16, total: 192000 },
-    { name: 'Coca-Cola 1.5L', cantidad: 42, total: 134400 },
-  ];
+  const exportSales = () => downloadCsv(`ventas_${r.days[0]}_${r.days[r.days.length - 1]}.csv`, [
+    ['Número', 'Fecha', 'Canal', 'Cliente', 'Medio de pago', 'Subtotal', 'Descuento', 'Total', 'Estado fiscal'],
+    ...r.sales.map(x => [x.sale_number, new Date(x.created_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Cordoba' }), x.channel, x.customer_name ?? '', PAY[x.payment_method] ?? x.payment_method, x.subtotal, x.discount, x.total, x.fiscal_status]),
+  ]);
 
-  const paymentBreakdownData = [
-    { name: 'Efectivo', value: 73400, color: '#10b981' },
-    { name: 'Mercado Pago', value: 57100, color: '#3b82f6' },
-    { name: 'Transferencia', value: 24500, color: '#a855f7' },
-    { name: 'Tarjeta Débito', value: 8200, color: '#f59e0b' },
-  ];
-
-  const exportReportCSV = () => {
-    const headers = ['Producto', 'Cantidad Vendida', 'Total Recaudado (ARS)'];
-    const rows = topProductsData.map(p => [`"${p.name}"`, p.cantidad, p.total]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const link = document.createElement('a');
-    link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', `reporte_ventas_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const net = r.s.grossProfit - r.expenses;
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div className="bg-charcoal-900 p-6 rounded-3xl border border-charcoal-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-fire-500" />
-            Informes y Estadísticas Comerciales
-          </h1>
-          <p className="text-xs text-charcoal-400 mt-1">
-            Métricas de facturación, platos más vendidos, utilidad estimada y medios de cobro
-          </p>
-        </div>
+    <div className="space-y-5">
+      <PageHeader icon={BarChart3} title="Informes" subtitle="Calculados exclusivamente con ventas, pedidos y gastos registrados."
+        actions={<>
+          <div className="flex rounded-xl bg-charcoal-900 border border-charcoal-800 p-1">
+            {RANGES.map(x => <button key={x.d} onClick={() => setRange(x.d)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${range === x.d ? 'bg-fire-600 text-white' : 'text-charcoal-300 hover:text-white'}`}>{x.l}</button>)}
+          </div>
+          <Button onClick={exportSales} disabled={!r.sales.length}><Download className="w-4 h-4" /> Exportar CSV</Button>
+        </>} />
 
-        <button
-          onClick={exportReportCSV}
-          className="flex items-center gap-1.5 px-4 py-2 bg-charcoal-800 hover:bg-charcoal-700 text-charcoal-200 rounded-xl text-xs font-bold border border-charcoal-700 transition"
-        >
-          <Download className="w-4 h-4" />
-          Exportar Informe CSV
-        </button>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Facturación" value={formatARS(r.s.total)} icon={TrendingUp} tone="fire" hint={`${r.s.count} ventas`} />
+        <StatCard label="Ticket promedio" value={formatARS(r.s.avgTicket)} icon={Receipt} tone="blue" />
+        <StatCard label="Ganancia bruta est." value={formatARS(r.s.grossProfit)} icon={Sparkles} tone="green" hint={`Costo ${formatARS(r.s.cost)}`} />
+        <StatCard label="Resultado tras gastos" value={formatARS(net)} icon={Wallet} tone={net >= 0 ? 'green' : 'red'} hint={`Gastos ${formatARS(r.expenses)}`} />
       </div>
 
-      {/* KPI Highlights */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Total Facturado Estimado</span>
-          <div className="text-3xl font-black text-white">$ 1.804.400</div>
-          <span className="text-[11px] text-emerald-400 font-semibold">Semana en curso</span>
-        </div>
-
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Ganancia Bruta Estimada</span>
-          <div className="text-3xl font-black text-emerald-400">$ 938.200</div>
-          <span className="text-[11px] text-charcoal-400">Margen promedio: 52%</span>
-        </div>
-
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Ticket Promedio por Pedido</span>
-          <div className="text-3xl font-black text-fire-400">$ 19.450</div>
-          <span className="text-[11px] text-charcoal-400">Impulsado por Combos Campeón</span>
-        </div>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Top products bar chart */}
-        <div className="lg:col-span-8 bg-charcoal-900 p-5 rounded-3xl border border-charcoal-800 space-y-4">
-          <h3 className="font-black text-white text-base">Platos y Productos Más Vendidos</h3>
-          <p className="text-xs text-charcoal-400">Unidades despachadas en la última semana</p>
-
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topProductsData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
-                <XAxis type="number" stroke="#71717a" fontSize={11} />
-                <YAxis dataKey="name" type="category" stroke="#71717a" fontSize={10} width={130} />
-                <Tooltip
-                  formatter={(val: any) => [`${val} unidades`, 'Ventas']}
-                  contentStyle={{ backgroundColor: '#141416', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
-                />
-                <Bar dataKey="cantidad" fill="#ea580c" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Payment Pie Chart */}
-        <div className="lg:col-span-4 bg-charcoal-900 p-5 rounded-3xl border border-charcoal-800 space-y-4 flex flex-col justify-between">
-          <div>
-            <h3 className="font-black text-white text-base">Medios de Cobro</h3>
-            <p className="text-xs text-charcoal-400">Participación por volumen de facturación</p>
-          </div>
-
-          <div className="h-48 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={paymentBreakdownData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={45}
-                  outerRadius={75}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {paymentBreakdownData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(val: any) => formatARS(Number(val))} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {paymentBreakdownData.map(item => (
-              <div key={item.name} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                <span className="text-charcoal-300 truncate">{item.name}</span>
+      <div className="grid lg:grid-cols-3 gap-4">
+        <Card title="Facturación por día" className="lg:col-span-2">
+          {r.s.count ? (
+            <div className="h-64 -ml-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={r.series}>
+                  <CartesianGrid stroke="#242426" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: '#888', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#888', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={n => `$${Math.round(n / 1000)}k`} width={48} />
+                  <Tooltip cursor={{ fill: '#ffffff08' }} contentStyle={{ background: '#141416', border: '1px solid #242426', borderRadius: 12, fontSize: 12 }} formatter={(n: number) => [formatARS(n), 'Facturación']} />
+                  <Bar dataKey="total" fill="#f97316" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <EmptyState icon={BarChart3} title="Sin ventas en el período" />}
+        </Card>
+        <Card title="Medios de pago">
+          {r.s.byPayment.length ? (
+            <>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={r.s.byPayment} dataKey="total" nameKey="method" innerRadius={40} outerRadius={65} paddingAngle={2} stroke="none">
+                      {r.s.byPayment.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: '#141416', border: '1px solid #242426', borderRadius: 12, fontSize: 12 }} formatter={(n: number, k: string) => [formatARS(n), PAY[k] ?? k]} />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
+              <ul className="space-y-1.5 text-xs mt-2">
+                {r.s.byPayment.map((p, i) => <li key={p.method} className="flex justify-between"><span className="flex items-center gap-2 text-charcoal-300"><span className="w-2 h-2 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />{PAY[p.method] ?? p.method}</span><span className="text-white font-bold">{formatARS(p.total)}</span></li>)}
+              </ul>
+            </>
+          ) : <EmptyState title="Sin cobros" />}
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card title="Productos más vendidos">
+          <Table head={['Producto', 'Cantidad', 'Facturación']} empty={<EmptyState title="Sin datos" />}>
+            {r.s.topProducts.slice(0, 15).map(p => (
+              <tr key={p.name} className="text-charcoal-200">
+                <td className="px-5 py-2">{p.name}</td>
+                <td className="px-5 py-2 tabular-nums">{p.quantity}</td>
+                <td className="px-5 py-2 tabular-nums font-bold text-white">{formatARS(p.revenue)}</td>
+              </tr>
             ))}
-          </div>
-        </div>
+          </Table>
+        </Card>
+        <Card title={`Pedidos por canal (${r.ordersCount})`}>
+          <Table head={['Canal', 'Pedidos', 'Monto']} empty={<EmptyState title="Sin pedidos en el período" />}>
+            {r.channels.map(c => (
+              <tr key={c.channel} className="text-charcoal-200">
+                <td className="px-5 py-2">{CH[c.channel] ?? c.channel}</td>
+                <td className="px-5 py-2 tabular-nums">{c.count}</td>
+                <td className="px-5 py-2 tabular-nums font-bold text-white">{formatARS(c.total)}</td>
+              </tr>
+            ))}
+          </Table>
+          {r.ordersCount > 0 && <p className="text-[11px] text-charcoal-400 mt-3">Cancelados: {r.status.cancelado ?? 0} · Entregados: {r.status.entregado ?? 0}</p>}
+        </Card>
       </div>
     </div>
   );

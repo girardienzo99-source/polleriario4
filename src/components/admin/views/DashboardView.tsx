@@ -1,342 +1,210 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  DollarSign, 
-  ShoppingBag, 
-  TrendingUp, 
-  AlertTriangle, 
-  Clock, 
-  ChefHat, 
-  Flame, 
-  CreditCard, 
-  FileText, 
-  Plus, 
-  CheckCircle2 
+import React, { useMemo } from 'react';
+import {
+  TrendingUp, Receipt, ClipboardList, Clock, Flame, CheckCircle2, XCircle, Wallet, AlertTriangle,
+  Store, ChefHat, Package, Boxes, FileText, Sparkles, ShoppingBag, Truck,
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  CartesianGrid 
-} from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { PolleriaStore } from '@/lib/data/storage';
 import { formatARS } from '@/lib/formatters';
-import { Order } from '@/types/database';
-import { AdminTab } from '../AdminSidebar';
+import { dayKey, lastNDays, summarizeSales, salesSeries, filterByDays, sumExpenses, countOrdersByStatus, pctChange } from '@/lib/domain/reports';
+import { useAuth } from '@/context/AuthContext';
+import { canAccess, ModuleId } from '@/lib/domain/permissions';
+import { PageHeader, Card, StatCard, EmptyState, Badge, useStoreVersion } from '../ui';
 
-interface DashboardViewProps {
-  onNavigate: (tab: AdminTab) => void;
-}
+const PAYMENT_LABELS: Record<string, string> = {
+  efectivo: 'Efectivo', transferencia: 'Transferencia', debito: 'Débito', credito: 'Crédito', mercadopago: 'Mercado Pago', mixto: 'Mixto',
+};
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [ingredients, setIngredients] = useState<any[]>([]);
-  const [cashSession, setCashSession] = useState<any>(null);
+export const DashboardView: React.FC<{ onNavigate: (tab: ModuleId) => void }> = ({ onNavigate }) => {
+  const v = useStoreVersion();
+  const { role, user } = useAuth();
 
-  useEffect(() => {
-    const load = () => {
-      setOrders(PolleriaStore.getOrders());
-      setIngredients(PolleriaStore.getIngredients());
-      setCashSession(PolleriaStore.getCashSession());
-    };
-    load();
-    window.addEventListener('polleria_store_updated', load);
-    return () => window.removeEventListener('polleria_store_updated', load);
-  }, []);
+  const data = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const sales = PolleriaStore.getSales();
+    const orders = PolleriaStore.getOrders();
+    const today = dayKey(new Date());
+    const yesterday = dayKey(new Date(Date.now() - 86_400_000));
+    const todaySet = new Set([today]);
+    const salesToday = filterByDays(sales, todaySet);
+    const salesYesterday = filterByDays(sales, new Set([yesterday]));
+    const s = summarizeSales(salesToday);
+    const sy = summarizeSales(salesYesterday);
+    const ordersToday = filterByDays(orders, todaySet);
+    const status = countOrdersByStatus(ordersToday);
+    const days14 = lastNDays(14);
+    const series = salesSeries(filterByDays(sales, new Set(days14)), days14);
+    const expensesToday = sumExpenses(PolleriaStore.getExpenses(), todaySet);
+    const lowIngredients = PolleriaStore.getIngredients().filter(i => i.is_alert_active && i.current_stock <= i.min_stock);
+    const lowProducts = PolleriaStore.getProducts().filter(p => p.active && (p.stock_mode === 'batch' || p.stock_mode === 'simple') && p.current_stock <= p.min_stock);
+    const promos = PolleriaStore.getPromotions().filter(p => p.is_active);
+    const cash = PolleriaStore.getCashSession();
+    const batchesInOven = PolleriaStore.getBatches().filter(b => b.status === 'en_horno');
+    return { s, sy, status, ordersToday, series, expensesToday, lowIngredients, lowProducts, promos, cash, batchesInOven };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v]);
 
-  // Metrics
-  const totalSalesToday = orders.reduce((acc, curr) => acc + (curr.payment_status === 'pagado' ? curr.total : 0), 0);
-  const pendingOrders = orders.filter(o => o.status === 'recibido' || o.status === 'en_preparacion');
-  const readyOrders = orders.filter(o => o.status === 'listo');
-  const deliveredOrders = orders.filter(o => o.status === 'entregado');
-  const criticalStockItems = ingredients.filter(i => i.current_stock <= i.min_stock);
+  if (!data) return null;
+  const { s, sy, status, ordersToday, series, expensesToday, lowIngredients, lowProducts, promos, cash, batchesInOven } = data;
+  const change = pctChange(s.total, sy.total);
+  const hasSeries = series.some(x => x.total > 0);
 
-  // Weekly Sales Chart Mock
-  const chartData = [
-    { day: 'Lun', ventas: 185000 },
-    { day: 'Mar', ventas: 240000 },
-    { day: 'Mié', ventas: 290000 },
-    { day: 'Jue', ventas: 310000 },
-    { day: 'Vie', ventas: 480000 },
-    { day: 'Sáb', ventas: 620000 },
-    { day: 'Dom', ventas: 740000 },
+  const quick: { id: ModuleId; label: string; icon: React.ElementType }[] = [
+    { id: 'pos', label: 'Nueva venta', icon: Store },
+    { id: 'orders', label: 'Pedidos', icon: ClipboardList },
+    { id: 'cash', label: cash.status === 'abierta' ? 'Caja' : 'Abrir caja', icon: Wallet },
+    { id: 'kitchen', label: 'Cocina', icon: ChefHat },
+    { id: 'production', label: 'Tandas', icon: Flame },
+    { id: 'stock', label: 'Stock', icon: Boxes },
+    { id: 'products', label: 'Productos', icon: Package },
+    { id: 'arca', label: 'Facturación', icon: FileText },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Top Welcome & Quick Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-charcoal-900 p-6 rounded-3xl border border-charcoal-800">
-        <div>
-          <h1 className="text-2xl font-black text-white">Panel de Control General</h1>
-          <p className="text-xs text-charcoal-400 mt-1">
-            Resumen operativo en tiempo real de Pollería Los Campeones • Río Cuarto
-          </p>
-        </div>
+      <PageHeader
+        title={`Hola, ${user?.full_name.split(' ')[0] ?? ''}`}
+        subtitle="Resumen de hoy calculado con las ventas, pedidos y gastos registrados en el sistema."
+        actions={quick.filter(q => canAccess(role, q.id)).slice(0, 3).map(q => (
+          <button key={q.id} onClick={() => onNavigate(q.id)} className="inline-flex items-center gap-1.5 rounded-xl bg-charcoal-800 hover:bg-charcoal-700 border border-charcoal-700 px-3 py-2 text-xs font-bold text-white transition">
+            <q.icon className="w-3.5 h-3.5 text-fire-400" /> {q.label}
+          </button>
+        ))}
+      />
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => onNavigate('pos')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-fire-600 hover:bg-fire-500 text-white rounded-xl text-xs font-black shadow-glow transition active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            Venta Mostrador (POS)
-          </button>
-          <button
-            onClick={() => onNavigate('kitchen')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-charcoal-800 hover:bg-charcoal-700 text-charcoal-200 rounded-xl text-xs font-bold border border-charcoal-700 transition"
-          >
-            <ChefHat className="w-4 h-4 text-orange-400" />
-            Cocina KDS
-          </button>
-          <button
-            onClick={() => onNavigate('production')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-charcoal-800 hover:bg-charcoal-700 text-charcoal-200 rounded-xl text-xs font-bold border border-charcoal-700 transition"
-          >
-            <Flame className="w-4 h-4 text-fire-500" />
-            Tanda Spiedo
-          </button>
-          <button
-            onClick={() => onNavigate('arca')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-charcoal-800 hover:bg-charcoal-700 text-charcoal-200 rounded-xl text-xs font-bold border border-charcoal-700 transition"
-          >
-            <FileText className="w-4 h-4 text-blue-400" />
-            Facturación ARCA
-          </button>
+      {cash.status !== 'abierta' && canAccess(role, 'cash') && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-5 py-4">
+          <div className="flex items-center gap-3 text-sm text-amber-200">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            La caja está cerrada. No se pueden registrar cobros hasta abrirla.
+          </div>
+          <button onClick={() => onNavigate('cash')} className="rounded-xl bg-amber-500 hover:bg-amber-400 text-charcoal-950 px-4 py-2 text-xs font-black">Abrir caja</button>
         </div>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Facturación de hoy" value={formatARS(s.total)} icon={TrendingUp} tone="fire"
+          hint={change === null ? 'Sin ventas ayer para comparar' : `${change >= 0 ? '+' : ''}${change}% vs. ayer`} />
+        <StatCard label="Ventas cobradas" value={s.count} icon={Receipt} tone="green" hint={s.count ? `Ticket promedio ${formatARS(s.avgTicket)}` : 'Todavía no hay cobros hoy'} />
+        <StatCard label="Ganancia bruta est." value={formatARS(s.grossProfit)} icon={Sparkles} tone="blue" hint="Ventas − costo de productos" />
+        <StatCard label="Gastos de hoy" value={formatARS(expensesToday)} icon={Wallet} tone="red" hint="Registrados en Gastos" />
       </div>
 
-      {/* Metric KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Sales */}
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-2">
-          <div className="flex items-center justify-between text-charcoal-400">
-            <span className="text-xs font-bold">Ventas Totales Hoy</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-              <DollarSign className="w-4 h-4" />
-            </div>
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        {[
+          { k: 'recibido', label: 'Recibidos', icon: ClipboardList, cls: 'text-sky-400' },
+          { k: 'en_preparacion', label: 'En cocina', icon: Clock, cls: 'text-amber-400' },
+          { k: 'listo', label: 'Listos', icon: CheckCircle2, cls: 'text-emerald-400' },
+          { k: 'en_reparto', label: 'En reparto', icon: Truck, cls: 'text-violet-400' },
+          { k: 'entregado', label: 'Entregados', icon: ShoppingBag, cls: 'text-charcoal-300' },
+          { k: 'cancelado', label: 'Cancelados', icon: XCircle, cls: 'text-red-400' },
+        ].map(x => (
+          <div key={x.k} className="rounded-2xl border border-charcoal-800 bg-charcoal-900/70 p-3">
+            <x.icon className={`w-4 h-4 mb-2 ${x.cls}`} />
+            <div className="text-xl font-black text-white tabular-nums">{status[x.k] ?? 0}</div>
+            <div className="text-[10px] uppercase tracking-wider text-charcoal-400 font-semibold">{x.label}</div>
           </div>
-          <div className="text-2xl font-black text-white">
-            {formatARS(totalSalesToday)}
-          </div>
-          <div className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" /> +14.8% vs domingo anterior
-          </div>
-        </div>
-
-        {/* Orders in Preparation */}
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-2">
-          <div className="flex items-center justify-between text-charcoal-400">
-            <span className="text-xs font-bold">Pedidos en Cocina</span>
-            <div className="w-8 h-8 rounded-lg bg-fire-500/10 text-fire-400 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-fire-400">
-            {pendingOrders.length}
-          </div>
-          <div className="text-[11px] text-charcoal-400">
-            {readyOrders.length} listos para entrega
-          </div>
-        </div>
-
-        {/* Cash Status */}
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-2">
-          <div className="flex items-center justify-between text-charcoal-400">
-            <span className="text-xs font-bold">Efectivo en Caja</span>
-            <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
-              <CreditCard className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-white">
-            {formatARS(cashSession?.expected_cash || 25000)}
-          </div>
-          <div className="text-[11px] text-charcoal-400">
-            Turno: {cashSession?.user_name ? 'Lucas Gómez' : 'Activo'}
-          </div>
-        </div>
-
-        {/* Stock Alerts */}
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-2">
-          <div className="flex items-center justify-between text-charcoal-400">
-            <span className="text-xs font-bold">Alertas de Stock</span>
-            <div className="w-8 h-8 rounded-lg bg-amberGold-500/10 text-amberGold-400 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className={`text-2xl font-black ${criticalStockItems.length > 0 ? 'text-amberGold-400' : 'text-emerald-400'}`}>
-            {criticalStockItems.length}
-          </div>
-          <div className="text-[11px] text-charcoal-400">
-            {criticalStockItems.length > 0 ? 'Insumos bajo mínimo' : 'Stock en niveles óptimos'}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Chart & Quick Status Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Weekly Chart */}
-        <div className="lg:col-span-8 bg-charcoal-900 p-5 rounded-3xl border border-charcoal-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-black text-white">Facturación Semanal</h3>
-              <p className="text-xs text-charcoal-400">Ventas comparadas por día de la semana (ARS)</p>
+      <div className="grid lg:grid-cols-3 gap-4">
+        <Card title="Facturación últimos 14 días" className="lg:col-span-2">
+          {hasSeries ? (
+            <div className="h-64 -ml-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={series}>
+                  <defs>
+                    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f97316" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#242426" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: '#888', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#888', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={n => `$${Math.round(n / 1000)}k`} width={48} />
+                  <Tooltip contentStyle={{ background: '#141416', border: '1px solid #242426', borderRadius: 12, fontSize: 12 }} formatter={(n: number) => [formatARS(n), 'Facturación']} />
+                  <Area type="monotone" dataKey="total" stroke="#f97316" strokeWidth={2} fill="url(#g)" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-            <span className="text-xs font-bold text-fire-400 bg-fire-500/10 px-2.5 py-1 rounded-lg border border-fire-500/20">
-              Promedio: $ 410.000 / día
-            </span>
-          </div>
+          ) : (
+            <EmptyState icon={TrendingUp} title="Sin ventas registradas en los últimos 14 días" text="El gráfico se completa automáticamente con cada cobro en el punto de venta o al cobrar un pedido." />
+          )}
+        </Card>
 
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis dataKey="day" stroke="#71717a" fontSize={11} />
-                <YAxis
-                  stroke="#71717a"
-                  fontSize={11}
-                  tickFormatter={val => `$${(val / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  formatter={(value: any) => [formatARS(Number(value)), 'Ventas']}
-                  contentStyle={{ backgroundColor: '#141416', borderColor: '#27272a', borderRadius: '12px', fontSize: '12px' }}
-                />
-                <Bar dataKey="ventas" fill="#ea580c" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Payment Methods breakdown */}
-        <div className="lg:col-span-4 bg-charcoal-900 p-5 rounded-3xl border border-charcoal-800 space-y-4">
-          <h3 className="text-base font-black text-white">Medios de Cobro</h3>
-          <p className="text-xs text-charcoal-400">Distribución de ingresos de la jornada</p>
-
-          <div className="space-y-3 pt-2">
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="font-bold text-charcoal-300">Efectivo en Local</span>
-                <span className="font-bold text-white">45% ($ 73.400)</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-charcoal-800 overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '45%' }} />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="font-bold text-charcoal-300">Mercado Pago (QR/Link)</span>
-                <span className="font-bold text-white">35% ($ 57.100)</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-charcoal-800 overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full" style={{ width: '35%' }} />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="font-bold text-charcoal-300">Transferencias Alias CBU</span>
-                <span className="font-bold text-white">15% ($ 24.500)</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-charcoal-800 overflow-hidden">
-                <div className="h-full bg-purple-500 rounded-full" style={{ width: '15%' }} />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="font-bold text-charcoal-300">Tarjeta Débito (Posnet)</span>
-                <span className="font-bold text-white">5% ($ 8.200)</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-charcoal-800 overflow-hidden">
-                <div className="h-full bg-amberGold-500 rounded-full" style={{ width: '5%' }} />
-              </div>
-            </div>
-          </div>
-        </div>
+        <Card title="Cobros por medio de pago (hoy)">
+          {s.byPayment.length ? (
+            <ul className="space-y-3">
+              {s.byPayment.map(p => {
+                const pct = s.total ? Math.round((p.total / s.total) * 100) : 0;
+                return (
+                  <li key={p.method}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-charcoal-200 font-semibold">{PAYMENT_LABELS[p.method] ?? p.method} <span className="text-charcoal-500">· {p.count}</span></span>
+                      <span className="text-white font-bold tabular-nums">{formatARS(p.total)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-charcoal-800 overflow-hidden"><div className="h-full bg-gradient-to-r from-fire-500 to-crimson-500" style={{ width: `${pct}%` }} /></div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <EmptyState icon={Wallet} title="Sin cobros hoy" />
+          )}
+        </Card>
       </div>
 
-      {/* Live Orders Table */}
-      <div className="bg-charcoal-900 rounded-3xl border border-charcoal-800 overflow-hidden">
-        <div className="p-5 border-b border-charcoal-800 flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-black text-white">Últimos Pedidos en Vivo</h3>
-            <p className="text-xs text-charcoal-400">Canales: Landing web, Mostrador, WhatsApp y Teléfono</p>
-          </div>
-
-          <button
-            onClick={() => onNavigate('orders')}
-            className="text-xs font-bold text-fire-400 hover:text-fire-300 transition"
-          >
-            Ver todos los pedidos →
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-charcoal-950 text-charcoal-400 uppercase text-[10px] tracking-wider border-b border-charcoal-800">
-              <tr>
-                <th className="p-3.5">Pedido</th>
-                <th className="p-3.5">Cliente</th>
-                <th className="p-3.5">Canal</th>
-                <th className="p-3.5">Entrega</th>
-                <th className="p-3.5">Detalle Platos</th>
-                <th className="p-3.5">Total</th>
-                <th className="p-3.5">Estado</th>
-                <th className="p-3.5 text-right">Acción</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-charcoal-800">
-              {orders.slice(0, 5).map(ord => (
-                <tr key={ord.id} className="hover:bg-charcoal-800/40 transition">
-                  <td className="p-3.5 font-bold text-white">{ord.order_number}</td>
-                  <td className="p-3.5">
-                    <div className="font-semibold text-white">{ord.customer_name}</div>
-                    <div className="text-[10px] text-charcoal-400">{ord.customer_phone}</div>
-                  </td>
-                  <td className="p-3.5">
-                    <span className="capitalize bg-charcoal-800 px-2 py-0.5 rounded font-semibold text-charcoal-300">
-                      {ord.channel}
-                    </span>
-                  </td>
-                  <td className="p-3.5">
-                    <span className={`font-semibold ${ord.delivery_type === 'delivery' ? 'text-blue-400' : 'text-charcoal-300'}`}>
-                      {ord.delivery_type === 'delivery' ? '🛵 Delivery' : '🏪 Retiro'}
-                    </span>
-                  </td>
-                  <td className="p-3.5 max-w-xs truncate text-charcoal-300">
-                    {ord.items.map(i => `${i.quantity}x ${i.product_name}`).join(', ')}
-                  </td>
-                  <td className="p-3.5 font-black text-white">{formatARS(ord.total)}</td>
-                  <td className="p-3.5">
-                    <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                      ord.status === 'recibido'
-                        ? 'bg-amberGold-500/20 text-amberGold-400 border border-amberGold-500/30'
-                        : ord.status === 'en_preparacion'
-                        ? 'bg-fire-600/20 text-fire-400 border border-fire-500/30'
-                        : ord.status === 'listo'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-charcoal-800 text-charcoal-400'
-                    }`}>
-                      {ord.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="p-3.5 text-right">
-                    <button
-                      onClick={() => onNavigate('orders')}
-                      className="px-2.5 py-1 rounded bg-charcoal-800 hover:bg-charcoal-700 text-charcoal-200 text-[11px] font-bold"
-                    >
-                      Gestionar
-                    </button>
-                  </td>
-                </tr>
+      <div className="grid lg:grid-cols-3 gap-4">
+        <Card title="Más vendidos hoy">
+          {s.topProducts.length ? (
+            <ol className="space-y-2.5">
+              {s.topProducts.slice(0, 6).map((p, i) => (
+                <li key={p.name} className="flex items-center gap-3 text-xs">
+                  <span className="w-6 h-6 rounded-lg bg-charcoal-800 text-charcoal-300 flex items-center justify-center font-black text-[11px]">{i + 1}</span>
+                  <span className="flex-1 text-charcoal-200 truncate">{p.name}</span>
+                  <span className="text-charcoal-400 tabular-nums">{p.quantity} u.</span>
+                  <span className="text-white font-bold tabular-nums w-20 text-right">{formatARS(p.revenue)}</span>
+                </li>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </ol>
+          ) : (
+            <EmptyState icon={ShoppingBag} title="Todavía no hay ventas hoy" />
+          )}
+        </Card>
+
+        <Card title="Alertas de stock" action={canAccess(role, 'stock') ? <button onClick={() => onNavigate('stock')} className="text-[11px] font-bold text-fire-400 hover:underline">Ver stock</button> : undefined}>
+          {lowIngredients.length + lowProducts.length ? (
+            <ul className="space-y-2 text-xs">
+              {lowProducts.map(p => (
+                <li key={p.id} className="flex justify-between gap-2"><span className="text-charcoal-200 truncate">{p.name}</span><Badge tone={p.current_stock <= 0 ? 'red' : 'amber'}>{p.current_stock} u.</Badge></li>
+              ))}
+              {lowIngredients.map(i => (
+                <li key={i.id} className="flex justify-between gap-2"><span className="text-charcoal-200 truncate">{i.name}</span><Badge tone={i.current_stock <= 0 ? 'red' : 'amber'}>{i.current_stock} {i.unit_measure}</Badge></li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState icon={CheckCircle2} title="Todo el stock está sobre el mínimo" />
+          )}
+        </Card>
+
+        <Card title="Operación">
+          <ul className="space-y-3 text-xs">
+            <li className="flex justify-between"><span className="text-charcoal-400">Pedidos de hoy</span><span className="text-white font-bold">{ordersToday.length}</span></li>
+            <li className="flex justify-between"><span className="text-charcoal-400">Tandas en horno</span><span className="text-white font-bold">{batchesInOven.length}</span></li>
+            <li className="flex justify-between"><span className="text-charcoal-400">Promociones activas</span><span className="text-white font-bold">{promos.length}</span></li>
+            <li className="flex justify-between"><span className="text-charcoal-400">Efectivo esperado en caja</span><span className="text-white font-bold">{cash.status === 'abierta' ? formatARS(cash.expected_cash) : '—'}</span></li>
+          </ul>
+          <div className="grid grid-cols-4 gap-2 mt-5">
+            {quick.filter(q => canAccess(role, q.id)).map(q => (
+              <button key={q.id} onClick={() => onNavigate(q.id)} title={q.label} className="flex flex-col items-center gap-1 rounded-xl bg-charcoal-950 border border-charcoal-800 hover:border-fire-500/50 py-2.5 transition">
+                <q.icon className="w-4 h-4 text-fire-400" />
+                <span className="text-[9px] text-charcoal-300 font-semibold">{q.label}</span>
+              </button>
+            ))}
+          </div>
+        </Card>
       </div>
     </div>
   );

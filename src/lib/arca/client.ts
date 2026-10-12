@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
-import { FiscalSettings, FiscalDocument, Sale } from '@/types/database';
+import { FiscalSettings } from '@/types/database';
+import { buildArcaQrUrl, validateCuit } from '@/lib/domain/fiscal';
 
 export interface ARCAInvoiceRequest {
   business_id: string;
@@ -24,6 +25,7 @@ export interface ARCAInvoiceRequest {
 
 export interface ARCAInvoiceResponse {
   success: boolean;
+  /** true = documento generado localmente SIN validez fiscal. */
   is_simulation: boolean;
   cae?: string;
   cae_expiration?: string;
@@ -34,115 +36,63 @@ export interface ARCAInvoiceResponse {
   observations?: string[];
 }
 
+/** Estado real de la integración. Mientras no exista backend WSAA/WSFEv1, siempre es 'no_configurado'. */
+export type ArcaIntegrationStatus = 'no_configurado' | 'homologacion' | 'produccion';
+
+export const ARCA_INTEGRATION_STATUS: ArcaIntegrationStatus = 'no_configurado';
+
 export const ARCAClient = {
-  /**
-   * Genera el payload oficial para el QR según especificación AFIP / ARCA
-   * URL: https://www.afip.gob.ar/fe/qr/?p={BASE64_JSON}
-   */
-  generateQRCodeData(params: {
-    cuit: string;
-    point_of_sale: number;
-    voucher_type: number;
-    voucher_number: number;
-    total: number;
-    doc_type_receiver: number;
-    doc_number_receiver: string;
-    cae: string;
-    date: string; // YYYY-MM-DD
-  }): string {
-    const jsonPayload = {
-      ver: 1,
-      fecha: params.date,
-      cuit: parseInt(params.cuit.replace(/\D/g, ''), 10),
-      ptoVta: params.point_of_sale,
-      tipoCmp: params.voucher_type,
-      nroCmp: params.voucher_number,
-      importe: Number(params.total.toFixed(2)),
-      moneda: 'PES',
-      ctz: 1,
-      tipoDocRec: params.doc_type_receiver,
-      nroDocRec: parseInt(params.doc_number_receiver.replace(/\D/g, '') || '0', 10),
-      tipoCodAut: 'E',
-      codAut: parseInt(params.cae, 10),
-    };
-
-    const base64 = typeof window !== 'undefined'
-      ? btoa(JSON.stringify(jsonPayload))
-      : Buffer.from(JSON.stringify(jsonPayload)).toString('base64');
-
-    return `https://www.afip.gob.ar/fe/qr/?p=${base64}`;
+  status(): ArcaIntegrationStatus {
+    return ARCA_INTEGRATION_STATUS;
   },
 
-  /**
-   * Renderiza el código QR en Base64 Data URL (PNG)
-   */
+  /** Renderiza el QR fiscal. Sólo posible con un CAE real. */
   async renderQRCodeDataUrl(qrUrl: string): Promise<string> {
-    try {
-      return await QRCode.toDataURL(qrUrl, {
-        width: 180,
-        margin: 1,
-        color: {
-          dark: '#000000',
-          light: '#ffffff',
-        },
-      });
-    } catch (e) {
-      console.error('Error generating QR Code:', e);
-      return '';
-    }
+    return QRCode.toDataURL(qrUrl, { width: 180, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
   },
 
   /**
-   * Emite comprobante fiscal.
-   * Si no hay certificados configurados o está en modo 'homologacion' sin cert,
-   * utiliza el Simulador Local Oficial marcado claramente como "NO FISCAL (MODO PRUEBA)".
+   * Emite un comprobante.
+   *
+   * La autorización real requiere un backend (Route Handler) con el certificado
+   * X.509 del contribuyente que firme el TRA para WSAA y llame a FECAESolicitar
+   * de WSFEv1. Ese backend NO está implementado todavía porque necesita los
+   * certificados de homologación del cliente.
+   *
+   * Por eso, este método genera un comprobante de SIMULACIÓN: sin CAE, sin QR
+   * fiscal y marcado "NO VÁLIDO COMO FACTURA". Jamás se inventa un CAE.
    */
-  async authorizeInvoice(
-    settings: FiscalSettings,
-    req: ARCAInvoiceRequest
-  ): Promise<ARCAInvoiceResponse> {
-    const isMock = !settings.cert_crt || !settings.cert_key || settings.environment === 'homologacion';
+  async authorizeInvoice(settings: FiscalSettings, req: ARCAInvoiceRequest, simulationNumber: number): Promise<ARCAInvoiceResponse> {
+    if (!validateCuit(settings.cuit)) {
+      return { success: false, is_simulation: true, error: 'El CUIT del emisor no es válido. Revisá la configuración fiscal.' };
+    }
+    if (req.receiver_doc_type === 80 && !validateCuit(req.receiver_doc_number)) {
+      return { success: false, is_simulation: true, error: 'El CUIT del receptor no es válido.' };
+    }
+    if (Math.abs(req.net_amount + req.vat_amount + req.exempt_amount - req.total_amount) > 0.011) {
+      return { success: false, is_simulation: true, error: 'Neto + IVA + exento no coincide con el total.' };
+    }
 
-    // Fecha actual en formato YYYY-MM-DD
-    const today = new Date().toISOString().split('T')[0];
-    const expiryDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    // Simulación controlada o llamada a API
-    if (isMock) {
-      const simulatedVoucherNumber = Math.floor(1000 + Math.random() * 9000);
-      const simulatedCAE = `7442${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-
-      const qrUrl = this.generateQRCodeData({
-        cuit: settings.cuit,
-        point_of_sale: req.point_of_sale,
-        voucher_type: req.voucher_type,
-        voucher_number: simulatedVoucherNumber,
-        total: req.total_amount,
-        doc_type_receiver: req.receiver_doc_type,
-        doc_number_receiver: req.receiver_doc_number,
-        cae: simulatedCAE,
-        date: today,
-      });
-
-      const qrDataUrl = await this.renderQRCodeDataUrl(qrUrl);
-
+    if (ARCA_INTEGRATION_STATUS === 'no_configurado') {
       return {
         success: true,
         is_simulation: true,
-        cae: simulatedCAE,
-        cae_expiration: expiryDate,
-        voucher_number: simulatedVoucherNumber,
-        qr_url: qrUrl,
-        qr_data_url: qrDataUrl,
-        observations: ['COMPROBANTE AUTORIZADO EN MODO SIMULACIÓN LOCAL (NO FISCAL)'],
+        voucher_number: simulationNumber,
+        observations: [
+          'SIMULACIÓN LOCAL — NO VÁLIDO COMO FACTURA.',
+          'No se envió a ARCA: falta configurar certificado y backend WSAA/WSFEv1.',
+        ],
       };
     }
 
-    // Modo Producción con certificados reales
-    return {
-      success: false,
-      is_simulation: false,
-      error: 'Certificados de producción requieren autorización activa en AFIP/ARCA.',
-    };
-  }
+    return { success: false, is_simulation: false, error: 'Integración ARCA no disponible.' };
+  },
+
+  /** Arma el QR sólo cuando ya existe un CAE real devuelto por ARCA. */
+  buildQrForAuthorized(settings: FiscalSettings, p: { voucherType: number; voucherNumber: number; total: number; docType: number; docNumber: string; cae: string; date: string }): string {
+    return buildArcaQrUrl({
+      date: p.date, cuit: settings.cuit, pointOfSale: settings.point_of_sale, voucherType: p.voucherType,
+      voucherNumber: p.voucherNumber, total: p.total, docTypeReceiver: p.docType, docNumberReceiver: p.docNumber, cae: p.cae,
+    });
+  },
 };

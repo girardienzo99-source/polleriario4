@@ -1,421 +1,180 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  ShieldCheck, 
-  Printer, 
-  Plus, 
-  CheckCircle2, 
-  AlertCircle, 
-  QrCode, 
-  RefreshCw 
-} from 'lucide-react';
-import { FiscalSettings, FiscalDocument, Customer } from '@/types/database';
+import React, { useMemo, useState } from 'react';
+import { FileText, AlertTriangle, Printer, ShieldAlert, Settings2, CheckCircle2, Circle } from 'lucide-react';
+import { FiscalSettings, Sale } from '@/types/database';
 import { PolleriaStore } from '@/lib/data/storage';
-import { ARCAClient } from '@/lib/arca/client';
-import { formatARS, formatDateAR, formatDateTimeAR } from '@/lib/formatters';
+import { formatARS, formatDateTimeAR, formatCUIT } from '@/lib/formatters';
+import { validateCuit, VOUCHER_LABELS } from '@/lib/domain/fiscal';
+import { emitFiscalForSale, receiverFromCustomer, FiscalReceiver, FINAL_CONSUMER } from '@/lib/arca/emit';
 import { ThermalReceiptProps } from '@/components/common/ThermalReceipt';
+import { PageHeader, Card, Button, Badge, EmptyState, Modal, Field, inputCls, toast, run, useStoreVersion, Table } from '../ui';
 
-interface ArcaFiscalViewProps {
-  onPrintTicket: (props: ThermalReceiptProps) => void;
-}
+export const ArcaFiscalView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => void }> = ({ onPrintTicket }) => {
+  const v = useStoreVersion();
+  const [emitting, setEmitting] = useState<Sale | null>(null);
+  const [receiver, setReceiver] = useState<FiscalReceiver>(FINAL_CONSUMER);
+  const [editing, setEditing] = useState<FiscalSettings | null>(null);
+  const [busy, setBusy] = useState(false);
 
-export const ArcaFiscalView: React.FC<ArcaFiscalViewProps> = ({ onPrintTicket }) => {
-  const [settings, setSettings] = useState<FiscalSettings | null>(null);
-  const [documents, setDocuments] = useState<FiscalDocument[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const { settings, docs, pendingSales, customers } = useMemo(() => {
+    const docs = PolleriaStore.getFiscalDocuments();
+    return {
+      settings: PolleriaStore.getFiscalSettings(),
+      docs,
+      pendingSales: PolleriaStore.getSales().filter(s => s.fiscal_status === 'no_fiscal').slice(0, 50),
+      customers: PolleriaStore.getCustomers(),
+    };
+  }, [v]);
 
-  // Issue modal
-  const [showIssueModal, setShowIssueModal] = useState(false);
-  const [voucherType, setVoucherType] = useState<number>(6); // 1: A, 6: B, 11: C
-  const [receiverDoc, setReceiverDoc] = useState('34890123');
-  const [receiverName, setReceiverName] = useState('Santiago Martínez');
-  const [invoiceTotal, setInvoiceTotal] = useState<number>(19900);
-  const [concept, setConcept] = useState('Combo Campeón al Spiedo');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const cuitOk = validateCuit(settings.cuit);
+  const checklist = [
+    { ok: cuitOk, label: 'CUIT del emisor válido' },
+    { ok: settings.point_of_sale > 0, label: 'Punto de venta configurado (debe estar dado de alta en ARCA como "Web Services")' },
+    { ok: false, label: 'Certificado X.509 de homologación generado y asociado al servicio wsfe' },
+    { ok: false, label: 'Backend WSAA (firma del TRA) + WSFEv1 (FECAESolicitar) desplegado en el servidor' },
+    { ok: false, label: 'Prueba de emisión en homologación con CAE real' },
+  ];
 
-  const loadData = () => {
-    setSettings(PolleriaStore.getFiscalSettings());
-    setDocuments(PolleriaStore.getFiscalDocuments());
-    setCustomers(PolleriaStore.getCustomers());
+  const startEmit = (s: Sale) => {
+    setEmitting(s);
+    setReceiver(receiverFromCustomer(customers.find(c => c.id === s.customer_id)));
   };
 
-  useEffect(() => {
-    loadData();
-    window.addEventListener('polleria_store_updated', loadData);
-    return () => window.removeEventListener('polleria_store_updated', loadData);
-  }, []);
-
-  const handleIssueInvoice = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!settings) return;
-
-    setIsProcessing(true);
-
-    const net = invoiceTotal / 1.21;
-    const vat = invoiceTotal - net;
-
-    const res = await ARCAClient.authorizeInvoice(settings, {
-      business_id: settings.business_id,
-      sale_id: `manual-sale-${Date.now()}`,
-      voucher_type: voucherType,
-      point_of_sale: settings.point_of_sale,
-      receiver_doc_type: voucherType === 1 ? 80 : 96,
-      receiver_doc_number: receiverDoc,
-      receiver_name: receiverName,
-      receiver_iva_condition: voucherType === 1 ? 'Responsable Inscripto' : 'Consumidor Final',
-      net_amount: net,
-      vat_amount: vat,
-      exempt_amount: 0,
-      total_amount: invoiceTotal,
-      items: [
-        {
-          description: concept,
-          quantity: 1,
-          unit_price: invoiceTotal,
-          subtotal: invoiceTotal,
-        }
-      ]
-    });
-
-    setIsProcessing(false);
-
-    if (res.success && res.cae) {
-      const docLetter = voucherType === 1 ? 'A' : voucherType === 6 ? 'B' : 'C';
-
-      const newDoc: FiscalDocument = {
-        id: `fisc-doc-${Date.now()}`,
-        business_id: settings.business_id,
-        voucher_type: voucherType,
-        point_of_sale: settings.point_of_sale,
-        voucher_number: res.voucher_number || Math.floor(1000 + Math.random() * 9000),
-        doc_type_receiver: voucherType === 1 ? 80 : 96,
-        doc_number_receiver: receiverDoc,
-        receiver_name: receiverName,
-        receiver_iva_condition: voucherType === 1 ? 'Responsable Inscripto' : 'Consumidor Final',
-        net_amount: net,
-        vat_amount: vat,
-        exempt_amount: 0,
-        total_amount: invoiceTotal,
-        cae: res.cae,
-        cae_expiration: res.cae_expiration,
-        qr_data: res.qr_data_url,
-        qr_url: res.qr_url,
-        afip_status: 'autorizado',
-        afip_response: res,
-        created_at: new Date().toISOString(),
-      };
-
-      PolleriaStore.saveFiscalDocument(newDoc);
-      setShowIssueModal(false);
-
-      setNotice(`¡Factura ${docLetter} N° ${newDoc.voucher_number} autorizada con CAE ${newDoc.cae}!`);
-      setTimeout(() => setNotice(null), 4000);
-
-      // Trigger print ticket
+  const emit = async () => {
+    if (!emitting) return;
+    setBusy(true);
+    try {
+      const { fiscalData } = await emitFiscalForSale(emitting, receiver);
       onPrintTicket({
-        type: 'fiscal',
-        businessName: settings.legal_name,
-        businessAddress: settings.fiscal_address,
-        businessCuit: settings.cuit,
-        orderNumber: `FAC-${docLetter}-${String(settings.point_of_sale).padStart(4, '0')}-${String(newDoc.voucher_number).padStart(8, '0')}`,
-        customerName: receiverName,
-        items: [
-          {
-            name: concept,
-            quantity: 1,
-            unitPrice: invoiceTotal,
-            subtotal: invoiceTotal,
-          }
-        ],
-        subtotal: invoiceTotal,
-        total: invoiceTotal,
-        fiscalData: {
-          voucherLetter: docLetter as any,
-          pointOfSale: settings.point_of_sale,
-          voucherNumber: newDoc.voucher_number,
-          cae: newDoc.cae || '74428901234567',
-          caeExpiration: newDoc.cae_expiration || '2026-10-22',
-          qrDataUrl: res.qr_data_url,
-          isSimulation: res.is_simulation,
-          receiverDoc: receiverDoc,
-          receiverName: receiverName,
-        }
+        type: 'fiscal', businessName: settings.legal_name, businessAddress: settings.fiscal_address, businessCuit: formatCUIT(settings.cuit),
+        orderNumber: emitting.sale_number, date: emitting.created_at, customerName: receiver.name, paymentMethod: emitting.payment_method,
+        items: emitting.items.map(i => ({ name: i.description, quantity: i.quantity, unitPrice: i.unit_price, subtotal: i.subtotal })),
+        subtotal: emitting.subtotal, discount: emitting.discount, total: emitting.total, fiscalData,
       });
+      toast('Comprobante de SIMULACIÓN generado (sin CAE, sin validez fiscal)', 'info');
+      setEmitting(null);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Error', 'error');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handlePrintDoc = (doc: FiscalDocument) => {
-    if (!settings) return;
-    const docLetter = doc.voucher_type === 1 ? 'A' : doc.voucher_type === 6 ? 'B' : 'C';
-
-    onPrintTicket({
-      type: 'fiscal',
-      businessName: settings.legal_name,
-      businessAddress: settings.fiscal_address,
-      businessCuit: settings.cuit,
-      orderNumber: `FAC-${docLetter}-${String(doc.point_of_sale).padStart(4, '0')}-${String(doc.voucher_number).padStart(8, '0')}`,
-      customerName: doc.receiver_name,
-      items: [
-        {
-          name: 'Consumo Gastronómico Pollería',
-          quantity: 1,
-          unitPrice: doc.total_amount,
-          subtotal: doc.total_amount,
-        }
-      ],
-      subtotal: doc.total_amount,
-      total: doc.total_amount,
-      fiscalData: {
-        voucherLetter: docLetter as any,
-        pointOfSale: doc.point_of_sale,
-        voucherNumber: doc.voucher_number,
-        cae: doc.cae || '74428901234567',
-        caeExpiration: doc.cae_expiration || '2026-10-22',
-        qrDataUrl: doc.qr_data,
-        isSimulation: true,
-        receiverDoc: doc.doc_number_receiver,
-        receiverName: doc.receiver_name,
-      }
-    });
-  };
-
-  if (!settings) return null;
-
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div className="bg-charcoal-900 p-6 rounded-3xl border border-charcoal-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <FileText className="w-6 h-6 text-blue-400" />
-            Facturación Electrónica ARCA (ex AFIP)
-          </h1>
-          <p className="text-xs text-charcoal-400 mt-1">
-            Conexión con servicios oficiales WSAA y WSFEv1 • Entornos de Homologación y Producción
+    <div className="space-y-5">
+      <PageHeader icon={FileText} title="Facturación electrónica ARCA"
+        subtitle="Generación de comprobantes A, B y C a partir de ventas registradas."
+        actions={<Button onClick={() => setEditing({ ...settings })}><Settings2 className="w-4 h-4" /> Datos fiscales</Button>} />
+
+      <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5 flex gap-4">
+        <ShieldAlert className="w-6 h-6 text-amber-400 shrink-0" />
+        <div className="text-sm">
+          <p className="font-black text-amber-200">Simulador local — NO FISCAL</p>
+          <p className="text-amber-100/80 text-xs mt-1 leading-relaxed">
+            Este sistema todavía <b>no está conectado a ARCA</b>. Los comprobantes que se generan acá son borradores internos:
+            no tienen CAE, no tienen QR fiscal y no son válidos como factura. Para emitir facturas reales hay que completar la lista de abajo.
           </p>
         </div>
-
-        <button
-          onClick={() => setShowIssueModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow transition active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          Emitir Factura Electrónica (CAE)
-        </button>
       </div>
 
-      {notice && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl animate-in fade-in">
-          {notice}
-        </div>
-      )}
-
-      {/* Fiscal Configuration Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">CUIT Emisor</span>
-          <div className="text-xl font-black text-white font-mono">{settings.cuit}</div>
-          <span className="text-[10px] text-charcoal-400">{settings.legal_name}</span>
-        </div>
-
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Condición Fiscal</span>
-          <div className="text-xl font-black text-blue-400">{settings.iva_condition}</div>
-          <span className="text-[10px] text-charcoal-400">Punto de Venta N° {settings.point_of_sale}</span>
-        </div>
-
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Ambiente de Trabajo</span>
-          <div className="text-xl font-black uppercase text-amberGold-400">{settings.environment}</div>
-          <span className="text-[10px] text-charcoal-400">Simulador / Homologación Activo</span>
-        </div>
-
-        <div className="bg-charcoal-900 p-5 rounded-2xl border border-charcoal-800 space-y-1">
-          <span className="text-xs font-bold text-charcoal-400">Servicios ARCA</span>
-          <div className="text-xl font-black text-emerald-400 flex items-center gap-1.5">
-            <CheckCircle2 className="w-5 h-5" /> Conectado
+      <div className="grid lg:grid-cols-3 gap-4">
+        <Card title="Estado de la integración" className="lg:col-span-1">
+          <ul className="space-y-2.5 text-xs">
+            {checklist.map(c => (
+              <li key={c.label} className="flex gap-2">
+                {c.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <Circle className="w-4 h-4 text-charcoal-600 shrink-0" />}
+                <span className={c.ok ? 'text-charcoal-200' : 'text-charcoal-400'}>{c.label}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4 pt-4 border-t border-charcoal-800 text-xs space-y-1.5">
+            <p className="flex justify-between"><span className="text-charcoal-400">Razón social</span><span className="text-white text-right">{settings.legal_name}</span></p>
+            <p className="flex justify-between"><span className="text-charcoal-400">CUIT</span><span className={cuitOk ? 'text-white' : 'text-red-300'}>{formatCUIT(settings.cuit)}</span></p>
+            <p className="flex justify-between"><span className="text-charcoal-400">Condición IVA</span><span className="text-white">{settings.iva_condition}</span></p>
+            <p className="flex justify-between"><span className="text-charcoal-400">Punto de venta</span><span className="text-white">{String(settings.point_of_sale).padStart(4, '0')}</span></p>
+            <p className="flex justify-between"><span className="text-charcoal-400">Ambiente objetivo</span><span className="text-white capitalize">{settings.environment}</span></p>
           </div>
-          <span className="text-[10px] text-charcoal-400">WSAA & WSFEv1 Habilitados</span>
-        </div>
-      </div>
+        </Card>
 
-      {/* Warning Notice about Non-Fiscal Sandbox */}
-      <div className="p-4 bg-charcoal-900 rounded-2xl border border-blue-500/30 flex items-start gap-3 text-xs text-charcoal-300">
-        <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-        <div>
-          <strong className="text-white block font-bold">Arquitectura Fiscal Homologada</strong>
-          Los comprobantes emitidos en este entorno generan CAE simulado y QR según la normativa RG AFIP 4291/2018. Para pasar a producción oficial con impacto fiscal tributario real, se requiere cargar el certificado digital (.crt) y la clave privada (.key) generada en el portal oficial de ARCA.
-        </div>
-      </div>
-
-      {/* Fiscal Documents Table */}
-      <div className="bg-charcoal-900 rounded-3xl border border-charcoal-800 overflow-hidden shadow">
-        <div className="p-5 border-b border-charcoal-800 flex justify-between items-center">
-          <h3 className="font-black text-white text-base">Comprobantes Electrónicos Emitidos</h3>
-          <span className="text-xs text-charcoal-400">Total: {documents.length}</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-charcoal-950 text-charcoal-400 uppercase text-[10px] tracking-wider border-b border-charcoal-800">
-              <tr>
-                <th className="p-3.5">Comprobante</th>
-                <th className="p-3.5">Fecha</th>
-                <th className="p-3.5">Receptor / Cliente</th>
-                <th className="p-3.5">Doc / CUIT</th>
-                <th className="p-3.5">CAE Autorizado</th>
-                <th className="p-3.5">Vto. CAE</th>
-                <th className="p-3.5 text-right">Importe Total</th>
-                <th className="p-3.5 text-right">Ticket</th>
+        <Card title={`Ventas sin comprobante (${pendingSales.length})`} className="lg:col-span-2">
+          <Table head={['Venta', 'Fecha', 'Cliente', 'Total', '']} empty={<EmptyState title="No hay ventas pendientes de comprobante" text="Las ventas cobradas en el POS o al cobrar pedidos aparecen acá." />}>
+            {pendingSales.map(s => (
+              <tr key={s.id} className="text-charcoal-200">
+                <td className="px-5 py-2.5 font-bold text-white">{s.sale_number}</td>
+                <td className="px-5 py-2.5 whitespace-nowrap">{formatDateTimeAR(s.created_at)}</td>
+                <td className="px-5 py-2.5">{s.customer_name ?? 'Consumidor final'}</td>
+                <td className="px-5 py-2.5 tabular-nums">{formatARS(s.total)}</td>
+                <td className="px-5 py-2.5 text-right"><Button onClick={() => startEmit(s)}><FileText className="w-3.5 h-3.5" /> Generar</Button></td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-charcoal-800">
-              {documents.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-charcoal-500">
-                    No se han emitido facturas fiscales todavía. Podés emitir una con el botón superior.
-                  </td>
-                </tr>
-              ) : (
-                documents.map(doc => {
-                  const letter = doc.voucher_type === 1 ? 'A' : doc.voucher_type === 6 ? 'B' : 'C';
-
-                  return (
-                    <tr key={doc.id} className="hover:bg-charcoal-800/40">
-                      <td className="p-3.5 font-bold text-white">
-                        Factura {letter} {String(doc.point_of_sale).padStart(4, '0')}-{String(doc.voucher_number).padStart(8, '0')}
-                      </td>
-                      <td className="p-3.5 text-charcoal-300">{formatDateTimeAR(doc.created_at)}</td>
-                      <td className="p-3.5 text-white font-medium">{doc.receiver_name}</td>
-                      <td className="p-3.5 font-mono text-charcoal-400">{doc.doc_number_receiver}</td>
-                      <td className="p-3.5 font-mono font-bold text-emerald-400">{doc.cae}</td>
-                      <td className="p-3.5 text-charcoal-300">{formatDateAR(doc.cae_expiration)}</td>
-                      <td className="p-3.5 text-right font-black text-white">{formatARS(doc.total_amount)}</td>
-                      <td className="p-3.5 text-right">
-                        <button
-                          onClick={() => handlePrintDoc(doc)}
-                          className="px-2.5 py-1 bg-charcoal-800 hover:bg-blue-600 hover:text-white text-charcoal-200 rounded-lg text-xs font-bold transition flex items-center gap-1 ml-auto"
-                        >
-                          <Printer className="w-3.5 h-3.5" /> Imprimir
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </Table>
+        </Card>
       </div>
 
-      {/* Manual Invoice Issue Modal */}
-      {showIssueModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-charcoal-900 border border-charcoal-700 rounded-3xl max-w-md w-full p-6 text-left shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-black text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-400" />
-              Emitir Comprobante ARCA
-            </h3>
+      <Card title={`Comprobantes generados (${docs.length})`}>
+        <Table head={['Fecha', 'Tipo', 'Número', 'Receptor', 'Neto', 'IVA', 'Total', 'Estado', 'CAE']} empty={<EmptyState title="Todavía no se generaron comprobantes" />}>
+          {docs.map(d => (
+            <tr key={d.id} className="text-charcoal-200">
+              <td className="px-5 py-2.5 whitespace-nowrap">{formatDateTimeAR(d.created_at)}</td>
+              <td className="px-5 py-2.5">{VOUCHER_LABELS[d.voucher_type]}</td>
+              <td className="px-5 py-2.5 tabular-nums">{d.afip_status === 'simulado' ? 'SIM-' : ''}{String(d.point_of_sale).padStart(4, '0')}-{String(d.voucher_number).padStart(8, '0')}</td>
+              <td className="px-5 py-2.5">{d.receiver_name}</td>
+              <td className="px-5 py-2.5 tabular-nums">{formatARS(d.net_amount, true)}</td>
+              <td className="px-5 py-2.5 tabular-nums">{formatARS(d.vat_amount, true)}</td>
+              <td className="px-5 py-2.5 tabular-nums font-bold text-white">{formatARS(d.total_amount, true)}</td>
+              <td className="px-5 py-2.5"><Badge tone={d.afip_status === 'autorizado' ? 'green' : d.afip_status === 'simulado' ? 'amber' : 'red'}>{d.afip_status === 'simulado' ? 'Simulado · no fiscal' : d.afip_status}</Badge></td>
+              <td className="px-5 py-2.5 text-charcoal-400">{d.cae ?? '—'}</td>
+            </tr>
+          ))}
+        </Table>
+      </Card>
 
-            <form onSubmit={handleIssueInvoice} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">Tipo de Comprobante *</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setVoucherType(6)}
-                    className={`p-2 rounded-xl font-bold border transition ${
-                      voucherType === 6
-                        ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                        : 'bg-charcoal-950 border-charcoal-700 text-charcoal-400'
-                    }`}
-                  >
-                    Factura B (Consumidor Final)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVoucherType(1)}
-                    className={`p-2 rounded-xl font-bold border transition ${
-                      voucherType === 1
-                        ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                        : 'bg-charcoal-950 border-charcoal-700 text-charcoal-400'
-                    }`}
-                  >
-                    Factura A (Con CUIT)
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">
-                  {voucherType === 1 ? 'CUIT del Receptor *' : 'DNI del Cliente (opcional)'}
-                </label>
-                <input
-                  type="text"
-                  required={voucherType === 1}
-                  value={receiverDoc}
-                  onChange={e => setReceiverDoc(e.target.value)}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">Nombre o Razón Social *</label>
-                <input
-                  type="text"
-                  required
-                  value={receiverName}
-                  onChange={e => setReceiverName(e.target.value)}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">Concepto Comercial *</label>
-                <input
-                  type="text"
-                  required
-                  value={concept}
-                  onChange={e => setConcept(e.target.value)}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">Importe Total con IVA ($) *</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={invoiceTotal}
-                  onChange={e => setInvoiceTotal(Number(e.target.value))}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white font-black text-sm text-emerald-400"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowIssueModal(false)}
-                  className="px-4 py-2 bg-charcoal-800 text-charcoal-300 rounded-xl font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isProcessing}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl shadow"
-                >
-                  {isProcessing ? 'Solicitando CAE...' : 'Autorizar y Generar CAE'}
-                </button>
-              </div>
-            </form>
-          </div>
+      <Modal open={!!emitting} onClose={() => setEmitting(null)} title={`Comprobante para ${emitting?.sale_number ?? ''}`}
+        footer={<>
+          <Button variant="ghost" onClick={() => setEmitting(null)}>Cancelar</Button>
+          <Button variant="primary" disabled={busy} onClick={emit}><Printer className="w-4 h-4" /> Generar simulación</Button>
+        </>}>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Field label="Condición IVA del receptor">
+            <select value={receiver.ivaCondition} onChange={e => setReceiver({ ...receiver, ivaCondition: e.target.value as FiscalReceiver['ivaCondition'], docType: e.target.value === 'Consumidor Final' ? receiver.docType : 80 })} className={inputCls}>
+              {['Consumidor Final', 'Responsable Inscripto', 'Monotributo', 'Exento'].map(c => <option key={c}>{c}</option>)}
+            </select>
+          </Field>
+          <Field label="Tipo de documento">
+            <select value={receiver.docType} onChange={e => setReceiver({ ...receiver, docType: Number(e.target.value) })} className={inputCls}>
+              <option value={99}>Sin identificar</option><option value={96}>DNI</option><option value={80}>CUIT</option>
+            </select>
+          </Field>
+          <Field label="Nombre / razón social"><input value={receiver.name} onChange={e => setReceiver({ ...receiver, name: e.target.value })} className={inputCls} /></Field>
+          <Field label="Número de documento" error={receiver.docType === 80 && receiver.docNumber && !validateCuit(receiver.docNumber) ? 'CUIT inválido' : undefined}>
+            <input value={receiver.docNumber} disabled={receiver.docType === 99} onChange={e => setReceiver({ ...receiver, docNumber: e.target.value.replace(/\D/g, '') })} className={inputCls} />
+          </Field>
         </div>
-      )}
+        <div className="mt-4 rounded-xl bg-charcoal-950 border border-charcoal-800 p-3 text-xs flex items-start gap-2 text-charcoal-300">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          El tipo (A/B/C) se determina automáticamente según la condición de IVA del emisor y del receptor. Se generará un borrador SIN CAE.
+        </div>
+      </Modal>
+
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="Datos fiscales del emisor"
+        footer={<>
+          <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+          <Button variant="primary" disabled={!editing || !validateCuit(editing.cuit)} onClick={() => { if (editing && run(() => PolleriaStore.saveFiscalSettings({ ...editing, cuit: editing.cuit.replace(/\D/g, '') }), 'Datos fiscales guardados')) setEditing(null); }}>Guardar</Button>
+        </>}>
+        {editing && <div className="grid sm:grid-cols-2 gap-3">
+          <Field label="Razón social"><input value={editing.legal_name} onChange={e => setEditing({ ...editing, legal_name: e.target.value })} className={inputCls} /></Field>
+          <Field label="CUIT" error={!validateCuit(editing.cuit) ? 'CUIT inválido (dígito verificador)' : undefined}><input value={editing.cuit} onChange={e => setEditing({ ...editing, cuit: e.target.value })} className={inputCls} /></Field>
+          <Field label="Condición frente al IVA"><select value={editing.iva_condition} onChange={e => setEditing({ ...editing, iva_condition: e.target.value })} className={inputCls}>
+            {['Responsable Inscripto', 'Monotributo', 'Exento'].map(c => <option key={c}>{c}</option>)}
+          </select></Field>
+          <Field label="Punto de venta"><input type="number" min={1} value={editing.point_of_sale} onChange={e => setEditing({ ...editing, point_of_sale: Math.max(1, Number(e.target.value) || 1) })} className={inputCls} /></Field>
+          <Field label="Domicilio fiscal"><input value={editing.fiscal_address} onChange={e => setEditing({ ...editing, fiscal_address: e.target.value })} className={inputCls} /></Field>
+          <Field label="Inicio de actividades"><input type="date" value={editing.start_activity_date} onChange={e => setEditing({ ...editing, start_activity_date: e.target.value })} className={inputCls} /></Field>
+        </div>}
+        <p className="text-[11px] text-charcoal-500 mt-4">Los certificados nunca deben guardarse en el navegador: se cargan como variables de entorno del servidor cuando se implemente el backend WSAA/WSFEv1.</p>
+      </Modal>
     </div>
   );
 };

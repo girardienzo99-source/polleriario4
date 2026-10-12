@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node -r ./patch-node.js node_modules/next/dist/bin/next dev",
     "build": "node -r ./patch-node.js node_modules/next/dist/bin/next build",
-    "start": "node -r ./patch-node.js node_modules/next/dist/bin/next start"
+    "start": "node -r ./patch-node.js node_modules/next/dist/bin/next start",
+    "test": "node --test tests/domain.test.ts"
   },
   "dependencies": {
     "next": "15.1.7",

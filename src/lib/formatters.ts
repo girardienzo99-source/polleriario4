@@ -3,6 +3,8 @@
  * Desarrollado para Pollería Pro - Río Cuarto Web
  */
 
+import { validateCuit as validateCuitDomain } from '@/lib/domain/fiscal';
+
 export function formatARS(amount: number, showDecimals: boolean = false): string {
   if (isNaN(amount)) return '$ 0';
   return new Intl.NumberFormat('es-AR', {
@@ -58,16 +60,7 @@ export function formatCUIT(cuit: string | undefined): string {
 }
 
 export function validateCUIT(cuit: string): boolean {
-  const clean = cuit.replace(/\D/g, '');
-  if (clean.length !== 11) return false;
-  const multipliers = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
-  let sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(clean[i]) * multipliers[i];
-  }
-  const mod = sum % 11;
-  const checkDigit = mod === 0 ? 0 : mod === 1 ? 9 : 11 - mod;
-  return checkDigit === parseInt(clean[10]);
+  return validateCuitDomain(cuit);
 }
 
 export function buildWhatsAppLink(phone: string, message: string): string {

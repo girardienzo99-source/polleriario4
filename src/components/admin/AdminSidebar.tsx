@@ -24,6 +24,7 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { canAccess, ROLE_LABELS } from '@/lib/domain/permissions';
 
 export type AdminTab = 
   | 'dashboard'
@@ -57,27 +58,28 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, mode } = useAuth();
 
-  const menuItems: Array<{ id: AdminTab; label: string; icon: React.ElementType; badge?: string; roles?: string[] }> = [
+  const allItems: Array<{ id: AdminTab; label: string; icon: React.ElementType; badge?: string }> = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'pos', label: 'Punto de Venta (POS)', icon: Store, badge: 'Rápido' },
-    { id: 'orders', label: 'Pedidos en Vivo', icon: ClipboardList },
-    { id: 'kitchen', label: 'Cocina KDS', icon: ChefHat, badge: 'Tablet' },
-    { id: 'production', label: 'Tandas de Spiedo', icon: Flame },
-    { id: 'products', label: 'Productos & Menú', icon: Package },
-    { id: 'stock', label: 'Stock e Insumos', icon: Boxes },
-    { id: 'recipes', label: 'Recetas de Cocina', icon: BookOpen },
-    { id: 'prices', label: 'Listas de Precios', icon: DollarSign },
-    { id: 'promotions', label: 'Promos & Combos', icon: Sparkles },
-    { id: 'cash', label: 'Caja & Turnos', icon: Wallet },
+    { id: 'pos', label: 'Punto de venta', icon: Store },
+    { id: 'orders', label: 'Pedidos', icon: ClipboardList },
+    { id: 'kitchen', label: 'Cocina (KDS)', icon: ChefHat },
+    { id: 'production', label: 'Tandas de producción', icon: Flame },
+    { id: 'products', label: 'Productos', icon: Package },
+    { id: 'stock', label: 'Stock e insumos', icon: Boxes },
+    { id: 'recipes', label: 'Recetas', icon: BookOpen },
+    { id: 'prices', label: 'Precios', icon: DollarSign },
+    { id: 'promotions', label: 'Promociones', icon: Sparkles },
+    { id: 'cash', label: 'Caja', icon: Wallet },
     { id: 'customers', label: 'Clientes', icon: Users },
-    { id: 'purchases', label: 'Compras & Proveedores', icon: Truck },
-    { id: 'expenses', label: 'Gastos Operativos', icon: Receipt },
-    { id: 'arca', label: 'Facturación ARCA', icon: FileText, badge: 'AFIP' },
-    { id: 'reports', label: 'Informes & Estadísticas', icon: BarChart3 },
+    { id: 'purchases', label: 'Compras y proveedores', icon: Truck },
+    { id: 'expenses', label: 'Gastos', icon: Receipt },
+    { id: 'arca', label: 'Facturación ARCA', icon: FileText, badge: 'Simulador' },
+    { id: 'reports', label: 'Informes', icon: BarChart3 },
     { id: 'settings', label: 'Configuración', icon: Settings },
   ];
+  const menuItems = allItems.filter(i => canAccess(role, i.id));
 
   return (
     <>
@@ -162,11 +164,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             <div className="min-w-0">
               <p className="text-xs font-bold text-white truncate">{user?.full_name || 'Usuario'}</p>
               <span className="text-[10px] text-fire-400 uppercase font-semibold block tracking-wider">
-                Rol: {role || 'admin'}
+                {role ? ROLE_LABELS[role] : ''}{mode === 'demo' ? ' · demo' : ''}
               </span>
             </div>
             <button
-              onClick={logout}
+              onClick={() => { void logout(); }}
               title="Cerrar sesión"
               className="p-1.5 text-charcoal-400 hover:text-red-400 hover:bg-charcoal-800 rounded-lg transition"
             >

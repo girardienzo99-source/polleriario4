@@ -13,6 +13,8 @@ import { Product, Category } from '@/types/database';
 import { PolleriaStore } from '@/lib/data/storage';
 import { formatARS } from '@/lib/formatters';
 
+import { applyIncrease } from '@/lib/domain/pricing';
+
 export const PricesView: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -36,19 +38,15 @@ export const PricesView: React.FC = () => {
     if (percentIncrease <= 0) return;
 
     let updatedCount = 0;
-    const factor = 1 + percentIncrease / 100;
 
     const updated = products.map(p => {
       if (targetCategory !== 'all' && p.category_id !== targetCategory) {
         return p;
       }
       updatedCount++;
-      let rawNewPrice = p.sale_price * factor;
-      let roundedPrice = Math.round(rawNewPrice / roundToNearest) * roundToNearest;
-
       return {
         ...p,
-        sale_price: roundedPrice,
+        sale_price: applyIncrease(p.sale_price, percentIncrease, roundToNearest),
       };
     });
 

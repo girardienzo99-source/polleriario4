@@ -1,120 +1,86 @@
-'use client';
-
 import React from 'react';
 import Link from 'next/link';
-import { Flame, MapPin, Phone, MessageCircle, Clock, Lock, Heart } from 'lucide-react';
+import { BUSINESS, BUSINESS_HOURS, formatRanges, whatsappLink } from './business';
+import { WhatsAppIcon } from './ui';
 
-export const Footer: React.FC = () => {
+export function Footer() {
+  const year = new Date().getFullYear();
   return (
-    <footer id="ubicacion" className="bg-charcoal-950 border-t border-charcoal-800 text-charcoal-300">
-      <div className="max-w-7xl mx-auto px-4 py-12 lg:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {/* Col 1: Identity */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fire-500 to-crimson-600 flex items-center justify-center text-white shadow-glow">
-                <Flame className="w-6 h-6" />
-              </div>
-              <span className="font-black text-lg text-white uppercase tracking-tight">
-                Pollería <span className="text-fire-500">Los Campeones</span>
-              </span>
-            </div>
-            <p className="text-xs text-charcoal-400 leading-relaxed font-normal">
-              Especialistas en pollo al spiedo a la leña, rotisería gourmet y comidas preparadas artesanales con materia prima de primera calidad en Río Cuarto.
+    <footer className="relative border-t border-white/[0.06] bg-charcoal-950">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-fire-600/50 to-transparent" aria-hidden="true" />
+      <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
+        <div className="grid gap-12 md:grid-cols-12">
+          <div className="md:col-span-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-fire-400">Pollería</p>
+            <p className="mt-1 font-display text-4xl text-bone">Los Campeones</p>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-charcoal-400">
+              Pollo al spiedo, horno y parrilla con leña. Cocina casera para retirar o con envío en Río Cuarto.
             </p>
-            <div className="text-xs text-charcoal-400">
-              <span className="text-white font-semibold">CUIT:</span> 30-71589412-9<br />
-              <span className="text-white font-semibold">Habilitación:</span> Municipal N° 4492/20
-            </div>
+            <a
+              href={whatsappLink('Hola Los Campeones, quiero hacer un pedido.')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-ghost mt-6 px-5 py-2.5"
+            >
+              <WhatsAppIcon className="h-4 w-4 text-emerald-400" />
+              Pedí por WhatsApp
+            </a>
           </div>
 
-          {/* Col 2: Horarios */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-              <Clock className="w-4 h-4 text-fire-500" /> Horarios de Atención
-            </h4>
-            <ul className="text-xs space-y-2 text-charcoal-300">
-              <li>
-                <strong className="text-white">Martes a Sábados:</strong><br />
-                Almuerzo: 11:30 a 14:30 hs<br />
-                Cena: 20:00 a 23:30 hs
-              </li>
-              <li>
-                <strong className="text-white">Domingos:</strong><br />
-                Mediodía especial: 11:00 a 15:00 hs<br />
-                Noche: 20:00 a 23:00 hs
-              </li>
-              <li className="text-charcoal-400 pt-1">
-                Lunes cerrado por descanso de personal.
-              </li>
+          <nav aria-label="Secciones del sitio" className="md:col-span-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-charcoal-500">Explorá</p>
+            <ul className="mt-4 space-y-2.5 text-sm">
+              {[
+                ['/#carta', 'Carta'],
+                ['/#promos', 'Promociones'],
+                ['/#fuego', 'Nuestro fuego'],
+                ['/#como-pedir', 'Cómo pedir'],
+                ['/#ubicacion', 'Ubicación y envíos'],
+              ].map(([href, label]) => (
+                <li key={href}>
+                  <a href={href} className="text-charcoal-300 transition hover:text-bone">
+                    {label}
+                  </a>
+                </li>
+              ))}
             </ul>
-          </div>
+          </nav>
 
-          {/* Col 3: Ubicación y Contacto */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-fire-500" /> Dónde Estamos
-            </h4>
-            <p className="text-xs text-charcoal-300">
-              Av. Marcelo T. de Alvear 840<br />
-              Río Cuarto, Córdoba, Argentina (CP 5800)
-            </p>
-            <div className="space-y-1.5 pt-1 text-xs">
-              <div className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 text-fire-400" />
-                <span className="text-white font-semibold">+54 358 464-8899</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <a
-                  href="https://wa.me/5493585123456"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-emerald-400 hover:underline font-semibold"
-                >
-                  WhatsApp: +54 9 358 512-3456
+          <div className="md:col-span-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-charcoal-500">Encontranos</p>
+            <address className="mt-4 space-y-2.5 text-sm not-italic text-charcoal-300">
+              <p>
+                {BUSINESS.address}
+                <br />
+                {BUSINESS.city}
+              </p>
+              <p>Todos los días · {formatRanges(BUSINESS_HOURS[1])}</p>
+              <p>
+                <a href={whatsappLink()} target="_blank" rel="noopener noreferrer" className="transition hover:text-bone">
+                  WhatsApp {BUSINESS.whatsappDisplay}
                 </a>
-              </div>
-            </div>
-          </div>
-
-          {/* Col 4: Enlaces y Administración */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-black text-white uppercase tracking-wider">
-              Información y Accesos
-            </h4>
-            <ul className="text-xs space-y-2">
-              <li>
-                <a href="#menu" className="hover:text-white transition">Menú completo</a>
-              </li>
-              <li>
-                <a href="#promos" className="hover:text-white transition">Promociones familiares</a>
-              </li>
-              <li>
-                <span className="text-charcoal-400">Zonas de reparto: Banda Norte, Centro, Alberdi, Quintas</span>
-              </li>
-              <li className="pt-2 border-t border-charcoal-800">
-                <Link
-                  href="/login"
-                  className="inline-flex items-center gap-1.5 text-charcoal-400 hover:text-fire-400 font-semibold transition"
-                >
-                  <Lock className="w-3.5 h-3.5" /> Acceso Administrativo (Login)
-                </Link>
-              </li>
-            </ul>
+              </p>
+            </address>
           </div>
         </div>
 
-        {/* Bottom copyright & dev credits */}
-        <div className="mt-12 pt-6 border-t border-charcoal-800 flex flex-col sm:flex-row items-center justify-between text-xs text-charcoal-400 gap-3">
-          <div>
-            © {new Date().getFullYear()} Pollería Los Campeones. Todos los derechos reservados.
-          </div>
-          <div className="flex items-center gap-1">
-            Desarrollado profesionalmente por <strong className="text-white hover:text-fire-400 transition cursor-pointer">Río Cuarto Web</strong>
+        <div className="mt-14 flex flex-col gap-4 border-t border-white/[0.06] pt-8 text-xs text-charcoal-500 md:flex-row md:items-center md:justify-between">
+          <p>
+            © {year} {BUSINESS.name}. Precios en pesos argentinos, sujetos a disponibilidad.
+          </p>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <Link href="/creditos" className="transition hover:text-charcoal-200">
+              Créditos de fotografías
+            </Link>
+            <Link href="/login" className="transition hover:text-charcoal-200">
+              Administración
+            </Link>
+            <span>
+              Desarrollado por <span className="font-medium text-charcoal-300">Río Cuarto Web</span>
+            </span>
           </div>
         </div>
       </div>
     </footer>
   );
-};
+}

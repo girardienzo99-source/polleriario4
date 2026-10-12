@@ -1,24 +1,53 @@
-import { Product, ProductVariant, PaymentMethod } from './database';
+import type { PaymentMethod, Product, ProductVariant } from './database';
 
-export interface CartItem {
-  id: string; // unique item id in cart (product_id + variant_id)
+/** Datos de presentación guardados al agregar (sólo para mostrar si el catálogo aún no cargó). */
+export interface CartLineSnapshot {
+  name: string;
+  variantName?: string;
+  imageUrl: string;
+  unitPrice: number;
+}
+
+/** Lo que se persiste en localStorage: referencias al catálogo, nunca precios "de verdad". */
+export interface CartLine {
+  key: string; // productId::variantId
+  productId: string;
+  variantId?: string;
+  quantity: number;
+  notes?: string;
+  snapshot: CartLineSnapshot;
+}
+
+/** Línea recalculada con el catálogo vigente en cada render. */
+export interface PricedCartLine extends CartLine {
   product: Product;
   variant?: ProductVariant;
-  quantity: number;
+  displayName: string;
   unitPrice: number;
   subtotal: number;
-  notes?: string;
+  /** false si hoy no se puede vender (sin stock / no disponible). */
+  available: boolean;
+  /** Máximo vendible según stock (Infinity si no controla stock). */
+  maxQuantity: number;
+}
+
+export type DeliveryType = 'retiro' | 'delivery';
+
+export interface CartTotalsPesos {
+  subtotal: number;
+  discount: number;
+  deliveryFee: number;
+  total: number;
 }
 
 export interface CheckoutFormValues {
   customerName: string;
   customerPhone: string;
-  deliveryType: 'retiro' | 'delivery';
+  deliveryType: DeliveryType;
   deliveryZoneId?: string;
   customerAddress?: string;
-  deliveryNotes?: string;
-  paymentMethod: PaymentMethod;
-  paymentProofReference?: string;
+  addressReferences?: string;
+  requestedTime: string;
+  paymentMethod: Exclude<PaymentMethod, 'mixto'>;
   orderNotes?: string;
-  scheduleTime?: string;
 }

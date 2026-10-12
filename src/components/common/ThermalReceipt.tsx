@@ -32,12 +32,16 @@ export interface ThermalReceiptProps {
     voucherLetter: 'A' | 'B' | 'C';
     pointOfSale: number;
     voucherNumber: number;
-    cae: string;
-    caeExpiration: string;
+    /** Sólo presente si ARCA autorizó el comprobante. Nunca se completa en simulación. */
+    cae?: string;
+    caeExpiration?: string;
     qrDataUrl?: string;
-    isSimulation?: boolean;
+    isSimulation: boolean;
     receiverDoc?: string;
     receiverName?: string;
+    receiverIvaCondition?: string;
+    netAmount?: number;
+    vatAmount?: number;
   };
 }
 
@@ -110,20 +114,27 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
   }
 
   if (type === 'fiscal') {
+    const authorized = !!fiscalData && !fiscalData.isSimulation && /^\d{14}$/.test(fiscalData.cae || '');
+    const letter = fiscalData?.voucherLetter || 'B';
     return (
       <div id="thermal-receipt" className="font-mono text-xs bg-white text-black p-3 max-w-[80mm] mx-auto border border-dashed border-gray-300">
-        <div className="text-center border-b-2 border-black pb-2 mb-2">
-          <div className="inline-block border-2 border-black font-black text-xl px-3 py-0.5 mb-1">
-            {fiscalData?.voucherLetter || 'B'}
+        {!authorized && (
+          <div className="text-center border-2 border-red-600 text-red-700 font-black text-[11px] p-1.5 mb-2">
+            SIMULACIÓN — NO VÁLIDO COMO FACTURA
+            <p className="text-[9px] font-semibold">No fue enviado ni autorizado por ARCA</p>
           </div>
+        )}
+        <div className="text-center border-b-2 border-black pb-2 mb-2">
+          <div className="inline-block border-2 border-black font-black text-xl px-3 py-0.5 mb-1">{letter}</div>
           <p className="font-bold text-sm">{businessName}</p>
           <p className="text-[10px]">{businessAddress}</p>
           <p className="text-[10px]">CUIT: {businessCuit}</p>
           <p className="text-[10px]">IVA: Responsable Inscripto</p>
-          <p className="text-[10px]">Inicio Actividades: 01/03/2020</p>
+          <p className="text-[10px]">Inicio de actividades: 01/03/2020</p>
           <div className="border-t border-dotted border-gray-500 mt-1 pt-1">
             <p className="font-bold text-xs">
-              FACTURA {fiscalData?.voucherLetter} N° {String(fiscalData?.pointOfSale || 1).padStart(4, '0')}-{String(fiscalData?.voucherNumber || 1).padStart(8, '0')}
+              {authorized ? `FACTURA ${letter} N° ` : `BORRADOR ${letter} SIM-`}
+              {String(fiscalData?.pointOfSale || 1).padStart(4, '0')}-{String(fiscalData?.voucherNumber || 0).padStart(8, '0')}
             </p>
             <p className="text-[10px]">Fecha: {formattedDate}</p>
           </div>
@@ -132,7 +143,7 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
         <div className="border-b border-dotted border-gray-500 pb-1 mb-2 text-[10px]">
           <p><strong>A:</strong> {fiscalData?.receiverName || customerName || 'Consumidor Final'}</p>
           <p><strong>Doc:</strong> {fiscalData?.receiverDoc || 'Sin identificar'}</p>
-          <p><strong>Cond. IVA:</strong> Consumidor Final</p>
+          <p><strong>Cond. IVA:</strong> {fiscalData?.receiverIvaCondition || 'Consumidor Final'}</p>
         </div>
 
         <table className="w-full text-[10px] mb-2 border-b border-black pb-1">
@@ -148,45 +159,51 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({
               <tr key={idx}>
                 <td className="align-top">{it.quantity}</td>
                 <td className="align-top">{it.name}</td>
-                <td className="align-top text-right">{formatARS(it.subtotal)}</td>
+                <td className="align-top text-right">{formatARS(it.subtotal, true)}</td>
               </tr>
             ))}
             {deliveryFee > 0 && (
               <tr>
                 <td>1</td>
-                <td>Costo de Envío</td>
-                <td className="text-right">{formatARS(deliveryFee)}</td>
+                <td>Costo de envío</td>
+                <td className="text-right">{formatARS(deliveryFee, true)}</td>
               </tr>
             )}
           </tbody>
         </table>
 
         <div className="space-y-0.5 text-xs text-right border-b-2 border-black pb-1 mb-2">
-          {discount > 0 && <p>Descuento: -{formatARS(discount)}</p>}
-          <p className="font-black text-sm">TOTAL: {formatARS(total)}</p>
+          {discount > 0 && <p>Descuento: -{formatARS(discount, true)}</p>}
+          {letter === 'A' && fiscalData?.netAmount !== undefined && (
+            <>
+              <p className="text-[10px]">Neto gravado: {formatARS(fiscalData.netAmount, true)}</p>
+              <p className="text-[10px]">IVA 21%: {formatARS(fiscalData.vatAmount ?? 0, true)}</p>
+            </>
+          )}
+          <p className="font-black text-sm">TOTAL: {formatARS(total, true)}</p>
+          {letter === 'B' && fiscalData?.vatAmount !== undefined && (
+            <p className="text-[9px] text-gray-700">Régimen de Transparencia Fiscal (Ley 27.743) — IVA contenido: {formatARS(fiscalData.vatAmount, true)}</p>
+          )}
           <p className="text-[10px] text-gray-700">Pago: {paymentMethod}</p>
         </div>
 
-        {/* CAE & QR */}
-        <div className="text-center pt-1 border-t border-dashed border-gray-400">
-          {fiscalData?.isSimulation && (
-            <p className="text-[9px] font-bold text-red-600 bg-red-50 p-1 mb-1 border border-red-300">
-              DOCUMENTO EMITIDO EN MODO SIMULACIÓN LOCAL (NO FISCAL)
-            </p>
-          )}
-          <div className="flex justify-center my-1">
-            {fiscalData?.qrDataUrl ? (
-              <img src={fiscalData.qrDataUrl} alt="QR ARCA" className="w-24 h-24" />
-            ) : (
-              <div className="w-24 h-24 border border-gray-400 flex items-center justify-center text-[8px] text-gray-500">
-                [QR ARCA]
+        {authorized ? (
+          <div className="text-center pt-1 border-t border-dashed border-gray-400">
+            {fiscalData?.qrDataUrl && (
+              <div className="flex justify-center my-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={fiscalData.qrDataUrl} alt="Código QR del comprobante (ARCA)" className="w-24 h-24" />
               </div>
             )}
+            <p className="font-bold text-[10px]">CAE: {fiscalData?.cae}</p>
+            {fiscalData?.caeExpiration && <p className="text-[9px]">Vto. CAE: {fiscalData.caeExpiration}</p>}
+            <p className="text-[8px] text-gray-600 mt-1">Comprobante autorizado por ARCA</p>
           </div>
-          <p className="font-bold text-[10px]">CAE: {fiscalData?.cae || '74428901234567'}</p>
-          <p className="text-[9px]">Vto. CAE: {fiscalData?.caeExpiration || formattedDate}</p>
-          <p className="text-[8px] text-gray-600 mt-1">Comprobante Autorizado por ARCA (ex AFIP)</p>
-        </div>
+        ) : (
+          <div className="text-center pt-1 border-t border-dashed border-gray-400 text-[9px] text-gray-700">
+            Sin CAE ni QR: este documento es una vista previa interna.
+          </div>
+        )}
       </div>
     );
   }
