@@ -1,0 +1,5 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "node -r ./patch-node.js node_modules/next/dist/bin/next build",
+  "devCommand": "node -r ./patch-node.js node_modules/next/dist/bin/next dev"
+}
