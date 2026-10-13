@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Image from 'next/image';
 import { AlertCircle, ArrowRight, Minus, Plus, ShoppingBag, Store, Tag, Trash2, Truck, X } from 'lucide-react';
+import type { Product } from '@/types/database';
 import { formatARS } from '@/lib/formatters';
 import { useCart } from '@/context/CartContext';
 import { MAX_QTY_PER_LINE } from './availability';
@@ -18,6 +19,8 @@ export function CartDrawer() {
     itemCount,
     setQuantity,
     removeItem,
+    addItem,
+    catalog,
     couponCode,
     discountPercent,
     applyCoupon,
@@ -33,6 +36,14 @@ export function CartDrawer() {
   const panelRef = useOverlay<HTMLDivElement>(isCartOpen, closeCart);
   const [code, setCode] = useState('');
   const [couponMsg, setCouponMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const inCartProductIds = useMemo(() => new Set(lines.map(l => l.productId)), [lines]);
+  const suggestions = useMemo<Product[]>(() => {
+    return (catalog?.products ?? [])
+      .filter(p => p.active && p.is_available && p.is_visible_landing && !inCartProductIds.has(p.id))
+      .filter(p => ['prod-papas-fritas', 'prod-empanadas', 'prod-gaseosa', 'prod-cerveza'].includes(p.id) || (p.category_id && ['cat-guarniciones', 'cat-bebidas'].includes(p.category_id)))
+      .slice(0, 3);
+  }, [catalog?.products, inCartProductIds]);
 
   if (!isCartOpen) return null;
 
@@ -149,6 +160,37 @@ export function CartDrawer() {
                   );
                 })}
               </ul>
+
+              {/* Sugerencias de acompañamiento */}
+              {suggestions.length > 0 && (
+                <div className="mt-6 rounded-2xl border border-white/[0.06] bg-charcoal-900/40 p-3.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-fire-400 mb-2.5 flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5" /> ¿Sumamos a tu pedido?
+                  </p>
+                  <div className="space-y-2">
+                    {suggestions.map(s => (
+                      <div key={s.id} className="flex items-center justify-between gap-3 bg-charcoal-950/70 border border-white/[0.04] rounded-xl p-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-charcoal-800">
+                            <Image src={s.image_url} alt="" fill sizes="40px" className="object-cover" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-bone truncate">{s.name}</p>
+                            <p className="text-[11px] font-bold text-fire-300">{formatARS(s.sale_price)}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => addItem(s.id, undefined, 1)}
+                          className="shrink-0 px-3 py-1.5 rounded-lg bg-fire-600/20 hover:bg-fire-600 text-fire-200 hover:text-white border border-fire-500/30 text-xs font-bold transition flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Agregar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Entrega */}
               <fieldset className="mt-8">

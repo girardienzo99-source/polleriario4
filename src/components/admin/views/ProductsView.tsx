@@ -17,6 +17,26 @@ import {
 import { Product, Category, ProductType } from '@/types/database';
 import { PolleriaStore } from '@/lib/data/storage';
 import { formatARS } from '@/lib/formatters';
+import { applyIncrease } from '@/lib/domain/pricing';
+
+const PHOTO_PRESETS = [
+  { label: 'Pollo Brasa Entero', url: '/images/pollo-brasa-entero.jpg' },
+  { label: 'Medio Pollo Brasa', url: '/images/medio-pollo-brasa.jpg' },
+  { label: 'Cuarto Pollo Brasa', url: '/images/cuarto-pollo-brasa.jpg' },
+  { label: 'Pollo Limón Brasa', url: '/images/pollo-limon-brasa.jpg' },
+  { label: 'Pollo Chimichurri', url: '/images/pollo-chimichurri.jpg' },
+  { label: 'Combo Campeón', url: '/images/combo-campeon.jpg' },
+  { label: 'Pollo Spiedo', url: '/images/pollo-spiedo.jpg' },
+  { label: 'Pollo Horno', url: '/images/pollo-horno.jpg' },
+  { label: 'Milanesa Napolitana', url: '/images/milanesa-napolitana.jpg' },
+  { label: 'Milanesa Pollo', url: '/images/milanesa-pollo.jpg' },
+  { label: 'Papas Fritas', url: '/images/papas-fritas.jpg' },
+  { label: 'Papas Cheddar', url: '/images/papas-cheddar.jpg' },
+  { label: 'Ensalada Rusa', url: '/images/ensalada-rusa.jpg' },
+  { label: 'Empanadas Criollas', url: '/images/empanadas.jpg' },
+  { label: 'Gaseosa 1.5L', url: '/images/gaseosa.jpg' },
+  { label: 'Cerveza 1L', url: '/images/cerveza.jpg' },
+];
 
 export const ProductsView: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -393,15 +413,63 @@ export const ProductsView: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-charcoal-300 block mb-1">URL de Imagen</label>
-                <input
-                  type="url"
-                  value={formData.image_url}
-                  onChange={e => setFormData({ ...formData, image_url: e.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2 text-white"
-                />
+              {(() => {
+                const saleVal = Number(formData.sale_price) || 0;
+                const costVal = Number(formData.cost_price) || 0;
+                const profit = saleVal - costVal;
+                const marginPct = saleVal > 0 ? Math.round((profit / saleVal) * 100) : 0;
+                return (
+                  <div className="flex items-center justify-between bg-charcoal-950 border border-charcoal-800 rounded-xl px-3 py-2 text-xs">
+                    <span className="text-charcoal-400">Margen bruto proyectado:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-charcoal-300">Ganancia: <strong className="text-white">{formatARS(profit)}</strong></span>
+                      <span className={`px-2 py-0.5 rounded font-black text-[11px] ${
+                        marginPct >= 40 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                        marginPct >= 20 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                        'bg-red-500/20 text-red-300 border border-red-500/30'
+                      }`}>
+                        {marginPct}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="space-y-2">
+                <label className="font-bold text-charcoal-300 block">Foto del Plato</label>
+                <div className="flex gap-3 items-center">
+                  <img
+                    src={formData.image_url || '/images/pollo-horno.jpg'}
+                    alt="Vista previa"
+                    className="w-14 h-14 rounded-xl object-cover border border-charcoal-700 bg-charcoal-950 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={formData.image_url}
+                    onChange={e => setFormData({ ...formData, image_url: e.target.value })}
+                    placeholder="/images/pollo-brasa-entero.jpg"
+                    className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] text-charcoal-400 block mb-1.5 font-bold">Fotos reales de archivo (1 clic para elegir):</span>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-charcoal-950/60 rounded-xl border border-charcoal-800">
+                    {PHOTO_PRESETS.map(preset => (
+                      <button
+                        key={preset.url}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, image_url: preset.url })}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
+                          formData.image_url === preset.url
+                            ? 'bg-fire-600 text-white border-fire-500'
+                            : 'bg-charcoal-800 text-charcoal-300 border-charcoal-700 hover:bg-charcoal-700 hover:text-white'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>

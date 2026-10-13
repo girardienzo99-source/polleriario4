@@ -613,6 +613,51 @@ export const PolleriaStore = {
     upsert(STORAGE_KEYS.SALES, this.getSales(), sale);
   },
 
+  /**
+   * Genera una comanda para Cocina a partir de una venta presencial (POS).
+   * No vuelve a descontar stock porque la venta ya lo hizo.
+   */
+  createKitchenTicketFromSale(sale: Sale, notes?: string): Order {
+    return transaction(() => {
+      const id = uid('ord');
+      const order: Order = {
+        id,
+        business_id: sale.business_id,
+        order_number: sale.sale_number,
+        customer_id: sale.customer_id,
+        customer_name: sale.customer_name || 'Venta Mostrador',
+        customer_phone: 'Mostrador',
+        channel: 'mostrador',
+        delivery_type: 'retiro',
+        delivery_fee: 0,
+        subtotal: sale.subtotal,
+        discount: sale.discount,
+        total: sale.total,
+        status: 'recibido',
+        payment_method: sale.payment_method,
+        payment_status: 'pagado',
+        sale_id: sale.id,
+        notes: notes?.trim() || 'Comanda de mostrador',
+        items: sale.items.map(si => ({
+          id: uid('oi'),
+          order_id: id,
+          product_id: si.product_id,
+          variant_id: si.variant_id,
+          product_name: si.description,
+          quantity: si.quantity,
+          unit_price: si.unit_price,
+          subtotal: si.subtotal,
+        })),
+        created_at: sale.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const list = this.getOrders();
+      list.unshift(order);
+      setItem(STORAGE_KEYS.ORDERS, list);
+      return order;
+    });
+  },
+
   // ---------------------------------------------------------------- clientes
   getCustomers(): Customer[] {
     return getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS);

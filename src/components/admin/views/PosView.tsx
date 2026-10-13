@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { Search, Trash2, Plus, Minus, Printer, FileText, Store, Lock, X } from 'lucide-react';
+import { Search, Trash2, Plus, Minus, Printer, FileText, Store, Lock, X, ChefHat } from 'lucide-react';
 import { Product, ProductVariant, PaymentMethod } from '@/types/database';
 import { PolleriaStore, costOf } from '@/lib/data/storage';
 import { formatARS } from '@/lib/formatters';
@@ -44,6 +44,8 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
   const [tendered, setTendered] = useState('');
   const [discountPct, setDiscountPct] = useState(0);
   const [variantFor, setVariantFor] = useState<Product | null>(null);
+  const [sendToKitchen, setSendToKitchen] = useState(true);
+  const [kitchenNotes, setKitchenNotes] = useState('');
   const [busy, setBusy] = useState(false);
 
   const { products, categories, customers, cash } = useMemo(() => ({
@@ -69,6 +71,19 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
   const change = payment === 'efectivo' && tenderedNum >= total ? tenderedNum - total : 0;
   const cashOpen = cash.status === 'abierta';
 
+  const cashPresets = useMemo(() => {
+    const t = Math.ceil(total);
+    if (t <= 0) return [];
+    const set = new Set<number>();
+    set.add(t);
+    if (t % 1000 !== 0) set.add(Math.ceil(t / 1000) * 1000);
+    if (t % 5000 !== 0) set.add(Math.ceil(t / 5000) * 5000);
+    [10000, 15000, 20000, 30000, 50000].forEach(p => {
+      if (p >= t) set.add(p);
+    });
+    return Array.from(set).sort((a, b) => a - b).slice(0, 5);
+  }, [total]);
+
   const add = (p: Product, variant?: ProductVariant) => {
     if (p.variants?.length && !variant) {
       setVariantFor(p);
@@ -88,6 +103,7 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
     setLines([]);
     setDiscountPct(0);
     setTendered('');
+    setKitchenNotes('');
     setCustomerId('final');
   };
 
@@ -112,6 +128,10 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
         created_at: '',
       });
 
+      if (sendToKitchen) {
+        PolleriaStore.createKitchenTicketFromSale(sale, kitchenNotes);
+      }
+
       let fiscalData: ThermalReceiptProps['fiscalData'];
       if (withInvoice) {
         try {
@@ -130,7 +150,7 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
         items: sale.items.map(i => ({ name: i.description, quantity: i.quantity, unitPrice: i.unit_price, subtotal: i.subtotal })),
         subtotal, discount, total, fiscalData,
       });
-      toast(`Venta ${sale.sale_number} registrada${change > 0 ? ` · Vuelto ${formatARS(change)}` : ''}`);
+      toast(`Venta ${sale.sale_number} registrada${sendToKitchen ? ' · Comanda enviada a Cocina' : ''}${change > 0 ? ` · Vuelto ${formatARS(change)}` : ''}`);
       reset();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'No se pudo registrar la venta', 'error');
@@ -235,6 +255,15 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
           </label>
         </div>
 
+        <div className="px-5 pt-2">
+          <input
+            value={kitchenNotes}
+            onChange={e => setKitchenNotes(e.target.value)}
+            placeholder="Nota para Cocina (ej: bien crocante, sin sal, mesa 3)"
+            className={`${inputCls} text-xs py-1.5`}
+          />
+        </div>
+
         <div className="flex-1 overflow-y-auto min-h-[180px] px-5 py-3 space-y-2">
           {resolved.length === 0 ? (
             <EmptyState title="Ticket vacío" text="Tocá un producto para agregarlo. Con lector de código de barras: escaneá y Enter." />
@@ -262,9 +291,33 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
             ))}
           </div>
           {payment === 'efectivo' && (
-            <div className="grid grid-cols-2 gap-2">
-              <input inputMode="decimal" value={tendered} onChange={e => setTendered(e.target.value)} placeholder="Paga con $" className={inputCls} />
-              <div className="rounded-xl bg-charcoal-950 border border-charcoal-800 px-3 py-2 text-xs"><span className="text-charcoal-400">Vuelto </span><span className="font-black text-emerald-400">{formatARS(change)}</span></div>
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-2">
+                <input inputMode="decimal" value={tendered} onChange={e => setTendered(e.target.value)} placeholder="Paga con $" className={inputCls} />
+                <div className="rounded-xl bg-charcoal-950 border border-charcoal-800 px-3 py-2 text-xs flex items-center justify-between">
+                  <span className="text-charcoal-400">Vuelto</span>
+                  <span className="font-black text-emerald-400 tabular-nums">{formatARS(change)}</span>
+                </div>
+              </div>
+              {cashPresets.length > 0 && (
+                <div className="flex flex-wrap gap-1 items-center">
+                  <span className="text-[10px] text-charcoal-500 font-bold">Rápido:</span>
+                  {cashPresets.map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setTendered(String(preset))}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition ${
+                        Number(tendered) === preset
+                          ? 'bg-fire-600 text-white border-fire-500'
+                          : 'bg-charcoal-800 text-charcoal-300 border-charcoal-700 hover:bg-charcoal-700 hover:text-white'
+                      }`}
+                    >
+                      {preset === total ? `Exacto` : formatARS(preset)}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <div className="space-y-1 text-xs">
@@ -272,6 +325,16 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
             {discount > 0 && <div className="flex justify-between text-charcoal-400"><span>Descuento {discountPct}%</span><span className="text-red-300 tabular-nums">−{formatARS(discount)}</span></div>}
             <div className="flex justify-between items-baseline pt-1"><span className="font-bold text-white">Total</span><span className="text-2xl font-black text-fire-400 tabular-nums">{formatARS(total)}</span></div>
           </div>
+          <label className="flex items-center gap-2 text-xs font-semibold text-charcoal-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={sendToKitchen}
+              onChange={e => setSendToKitchen(e.target.checked)}
+              className="rounded border-charcoal-700 bg-charcoal-800 text-fire-600 focus:ring-fire-500 w-4 h-4"
+            />
+            <ChefHat className="w-3.5 h-3.5 text-fire-400" />
+            <span>Enviar comanda a Cocina (KDS)</span>
+          </label>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="primary" className="py-3" disabled={!resolved.length || !cashOpen || busy} onClick={() => checkout(false)}><Printer className="w-4 h-4" /> Cobrar</Button>
             <Button className="py-3" disabled={!resolved.length || !cashOpen || busy} onClick={() => checkout(true)} title="Genera un comprobante de simulación (sin CAE) hasta conectar ARCA"><FileText className="w-4 h-4" /> Cobrar + comprobante</Button>

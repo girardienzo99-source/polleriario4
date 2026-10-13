@@ -20,6 +20,7 @@ export const StockView: React.FC = () => {
   const canAdjust = canDo(role, 'adjust_stock');
   const [tab, setTab] = useState<'insumos' | 'productos' | 'movimientos'>('insumos');
   const [search, setSearch] = useState('');
+  const [lowStockOnly, setLowStockOnly] = useState(false);
   const [adjust, setAdjust] = useState<Adjust | null>(null);
   const [newIng, setNewIng] = useState<Ingredient | null>(null);
 
@@ -31,8 +32,12 @@ export const StockView: React.FC = () => {
   }), [v]);
 
   const q = search.trim().toLowerCase();
-  const ingList = ingredients.filter(i => !q || i.name.toLowerCase().includes(q) || i.sku?.toLowerCase().includes(q));
-  const prodList = products.filter(p => !q || p.name.toLowerCase().includes(q));
+  const ingList = ingredients
+    .filter(i => !lowStockOnly || i.current_stock <= i.min_stock)
+    .filter(i => !q || i.name.toLowerCase().includes(q) || i.sku?.toLowerCase().includes(q));
+  const prodList = products
+    .filter(p => !lowStockOnly || p.current_stock <= p.min_stock)
+    .filter(p => !q || p.name.toLowerCase().includes(q));
   const low = ingredients.filter(i => i.current_stock <= i.min_stock).length + products.filter(p => p.current_stock <= p.min_stock).length;
   const value = ingredients.reduce((a, i) => a + i.current_stock * i.cost_price, 0);
 
@@ -79,13 +84,35 @@ export const StockView: React.FC = () => {
         <StatCard label="Valorizado (insumos)" value={formatARS(value)} tone="fire" hint="Stock × último costo" />
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center justify-between">
         <div className="flex rounded-xl bg-charcoal-900 border border-charcoal-800 p-1">
           {([['insumos', 'Insumos'], ['productos', 'Productos terminados'], ['movimientos', 'Movimientos']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${tab === k ? 'bg-fire-600 text-white' : 'text-charcoal-300 hover:text-white'}`}>{l}</button>
           ))}
         </div>
-        {tab !== 'movimientos' && <div className="relative flex-1 min-w-[200px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal-500" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar" className={`${inputCls} pl-9`} /></div>}
+        <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+          {tab !== 'movimientos' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setLowStockOnly(prev => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition ${
+                  lowStockOnly
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-charcoal-900 text-charcoal-400 border-charcoal-800 hover:text-white'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                <span>Solo bajo mínimo</span>
+                {low > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/30 text-[10px] font-black">{low}</span>}
+              </button>
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal-500" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o SKU" className={`${inputCls} pl-9`} />
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {tab === 'insumos' && (
