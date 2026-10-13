@@ -163,7 +163,7 @@ test('permisos por rol', () => {
   assert.equal(canAccess('cocinero', 'kitchen'), true);
   assert.equal(canAccess('cocinero', 'cash'), false);
   assert.equal(canAccess('encargado', 'arca'), false);
-  assert.equal(canAccess(null, 'dashboard'), false);
+  assert.equal(canAccess(null, 'pos'), false);
   assert.equal(canDo('cajero', 'edit_prices'), false);
   assert.equal(canDo('admin', 'reset_data'), true);
 });

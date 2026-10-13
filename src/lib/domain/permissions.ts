@@ -7,21 +7,32 @@
 export type Role = 'admin' | 'encargado' | 'cajero' | 'cocinero' | 'repartidor';
 
 export type ModuleId =
-  | 'dashboard' | 'pos' | 'orders' | 'kitchen' | 'production' | 'products' | 'stock'
-  | 'recipes' | 'prices' | 'promotions' | 'cash' | 'customers' | 'purchases'
-  | 'expenses' | 'arca' | 'reports' | 'settings';
+  | 'pos'
+  | 'kitchen'
+  | 'products'
+  | 'stock'
+  | 'prices'
+  | 'cash'
+  | 'arca'
+  | 'settings';
 
 const ALL: ModuleId[] = [
-  'dashboard', 'pos', 'orders', 'kitchen', 'production', 'products', 'stock', 'recipes',
-  'prices', 'promotions', 'cash', 'customers', 'purchases', 'expenses', 'arca', 'reports', 'settings',
+  'pos',
+  'kitchen',
+  'products',
+  'stock',
+  'prices',
+  'cash',
+  'arca',
+  'settings',
 ];
 
 export const ROLE_MODULES: Record<Role, ModuleId[]> = {
   admin: ALL,
-  encargado: ALL.filter(m => m !== 'arca' && m !== 'settings'),
-  cajero: ['pos', 'orders', 'cash', 'customers'],
-  cocinero: ['kitchen', 'production'],
-  repartidor: ['orders'],
+  encargado: ['pos', 'kitchen', 'products', 'stock', 'prices', 'cash'],
+  cajero: ['pos', 'cash'],
+  cocinero: ['kitchen', 'stock'],
+  repartidor: ['pos'],
 };
 
 export const ROLE_LABELS: Record<Role, string> = {

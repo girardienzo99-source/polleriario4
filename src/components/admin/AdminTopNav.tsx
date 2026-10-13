@@ -87,14 +87,14 @@ export const AdminTopNav: React.FC<AdminTopNavProps> = ({ onOpenMobileSidebar, o
           </button>
         )}
 
-        {(canAccess(role, 'orders') || canAccess(role, 'kitchen')) && (
+        {canAccess(role, 'kitchen') && (
           <button
-            onClick={() => onNavigateToTab(canAccess(role, 'orders') ? 'orders' : 'kitchen')}
+            onClick={() => onNavigateToTab('kitchen')}
             className="relative flex items-center gap-1.5 bg-charcoal-800 hover:bg-charcoal-700 text-charcoal-200 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-charcoal-700"
             aria-label={`${active.length} pedidos activos`}
           >
             <Bell className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Activos</span>
+            <span className="hidden sm:inline">Cocina</span>
             <span className={`px-1.5 rounded-full font-black text-[11px] ${newOrders.length > 0 ? 'bg-fire-600 text-white animate-pulse' : 'bg-charcoal-700 text-charcoal-300'}`}>
               {active.length}
             </span>

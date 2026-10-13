@@ -4,46 +4,21 @@ import React from 'react';
 import Link from 'next/link';
 import { 
   Flame, 
-  LayoutDashboard, 
   Store, 
-  ClipboardList, 
   ChefHat, 
   Package, 
   Boxes, 
-  BookOpen, 
   DollarSign, 
-  Sparkles, 
   Wallet, 
-  Users, 
-  Truck, 
-  Receipt, 
   FileText, 
-  BarChart3, 
   Settings, 
   LogOut, 
   ExternalLink 
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { canAccess, ROLE_LABELS } from '@/lib/domain/permissions';
+import { canAccess, ROLE_LABELS, ModuleId } from '@/lib/domain/permissions';
 
-export type AdminTab = 
-  | 'dashboard'
-  | 'pos'
-  | 'orders'
-  | 'kitchen'
-  | 'production'
-  | 'products'
-  | 'stock'
-  | 'recipes'
-  | 'prices'
-  | 'promotions'
-  | 'cash'
-  | 'customers'
-  | 'purchases'
-  | 'expenses'
-  | 'arca'
-  | 'reports'
-  | 'settings';
+export type AdminTab = ModuleId;
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -61,22 +36,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const { user, role, logout, mode } = useAuth();
 
   const allItems: Array<{ id: AdminTab; label: string; icon: React.ElementType; badge?: string }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'pos', label: 'Punto de venta', icon: Store },
-    { id: 'orders', label: 'Pedidos', icon: ClipboardList },
-    { id: 'kitchen', label: 'Cocina (KDS)', icon: ChefHat },
-    { id: 'production', label: 'Tandas de producción', icon: Flame },
+    { id: 'kitchen', label: 'Cocina', icon: ChefHat },
     { id: 'products', label: 'Productos', icon: Package },
     { id: 'stock', label: 'Stock e insumos', icon: Boxes },
-    { id: 'recipes', label: 'Recetas', icon: BookOpen },
     { id: 'prices', label: 'Precios', icon: DollarSign },
-    { id: 'promotions', label: 'Promociones', icon: Sparkles },
     { id: 'cash', label: 'Caja', icon: Wallet },
-    { id: 'customers', label: 'Clientes', icon: Users },
-    { id: 'purchases', label: 'Compras y proveedores', icon: Truck },
-    { id: 'expenses', label: 'Gastos', icon: Receipt },
     { id: 'arca', label: 'Facturación ARCA', icon: FileText, badge: 'Simulador' },
-    { id: 'reports', label: 'Informes', icon: BarChart3 },
     { id: 'settings', label: 'Configuración', icon: Settings },
   ];
   const menuItems = allItems.filter(i => canAccess(role, i.id));

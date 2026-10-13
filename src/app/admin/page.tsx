@@ -12,22 +12,13 @@ import { Toaster } from '@/components/admin/ui';
 import { canAccess, defaultModule } from '@/lib/domain/permissions';
 
 // Views
-import { DashboardView } from '@/components/admin/views/DashboardView';
 import { PosView } from '@/components/admin/views/PosView';
-import { OrdersView } from '@/components/admin/views/OrdersView';
 import { KitchenKdsView } from '@/components/admin/views/KitchenKdsView';
-import { ProductionBatchesView } from '@/components/admin/views/ProductionBatchesView';
 import { ProductsView } from '@/components/admin/views/ProductsView';
 import { StockView } from '@/components/admin/views/StockView';
-import { RecipesView } from '@/components/admin/views/RecipesView';
 import { PricesView } from '@/components/admin/views/PricesView';
-import { PromotionsView } from '@/components/admin/views/PromotionsView';
 import { CashRegisterView } from '@/components/admin/views/CashRegisterView';
-import { CustomersView } from '@/components/admin/views/CustomersView';
-import { PurchasesView } from '@/components/admin/views/PurchasesView';
-import { ExpensesView } from '@/components/admin/views/ExpensesView';
 import { ArcaFiscalView } from '@/components/admin/views/ArcaFiscalView';
-import { ReportsView } from '@/components/admin/views/ReportsView';
 import { SettingsView } from '@/components/admin/views/SettingsView';
 
 function FullScreenLoader({ text }: { text: string }) {
@@ -44,7 +35,7 @@ function AdminContent() {
   const { isAuthenticated, isReady, role } = useAuth();
 
   const tabParam = searchParams.get('tab') as AdminTab | null;
-  const [activeTab, setActiveTab] = useState<AdminTab>(tabParam || 'dashboard');
+  const [activeTab, setActiveTab] = useState<AdminTab>(tabParam || 'pos');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [receiptToPrint, setReceiptToPrint] = useState<ThermalReceiptProps | null>(null);
 
@@ -86,22 +77,13 @@ function AdminContent() {
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1400px] w-full mx-auto">
           {allowed && (
             <>
-              {activeTab === 'dashboard' && <DashboardView onNavigate={handleSelectTab} />}
               {activeTab === 'pos' && <PosView onPrintTicket={setReceiptToPrint} />}
-              {activeTab === 'orders' && <OrdersView onPrintTicket={setReceiptToPrint} />}
               {activeTab === 'kitchen' && <KitchenKdsView />}
-              {activeTab === 'production' && <ProductionBatchesView />}
               {activeTab === 'products' && <ProductsView />}
               {activeTab === 'stock' && <StockView />}
-              {activeTab === 'recipes' && <RecipesView />}
               {activeTab === 'prices' && <PricesView />}
-              {activeTab === 'promotions' && <PromotionsView />}
               {activeTab === 'cash' && <CashRegisterView />}
-              {activeTab === 'customers' && <CustomersView />}
-              {activeTab === 'purchases' && <PurchasesView />}
-              {activeTab === 'expenses' && <ExpensesView />}
               {activeTab === 'arca' && <ArcaFiscalView onPrintTicket={setReceiptToPrint} />}
-              {activeTab === 'reports' && <ReportsView />}
               {activeTab === 'settings' && <SettingsView />}
             </>
           )}
