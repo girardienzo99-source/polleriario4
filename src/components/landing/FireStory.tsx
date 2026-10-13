@@ -29,7 +29,7 @@ export function FireStory() {
           <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] shadow-card sm:aspect-[5/4] lg:aspect-[4/5]">
             <Image
               src="/images/parrilla-fuego.jpg"
-              alt="Pollo abierto asándose sobre brasas de leña"
+              alt="Pollos asados dorándose sobre brasas de leña"
               fill
               sizes="(min-width: 1024px) 50vw, 100vw"
               className="object-cover"

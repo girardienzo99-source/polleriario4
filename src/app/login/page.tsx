@@ -48,7 +48,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-charcoal-950 grid lg:grid-cols-2">
       {/* Imagen */}
       <div className="relative hidden lg:block">
-        <Image src="/images/parrilla-fuego.jpg" alt="Pollo asándose a la parrilla con leña" fill priority sizes="50vw" className="object-cover" />
+        <Image src="/images/parrilla-fuego.jpg" alt="Pollos asados a la parrilla con leña" fill priority sizes="50vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950 via-charcoal-950/40 to-charcoal-950/10" />
         <div className="absolute bottom-0 left-0 right-0 p-12">
           <p className="text-fire-400 text-xs font-bold uppercase tracking-[0.25em] mb-3">Pollería PRO</p>
