@@ -359,44 +359,82 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const itemCount = lines.reduce((a, l) => a + l.quantity, 0);
+  const hasUnavailable = lines.some(l => !l.available);
+  const activeCouponCode = coupon ? coupon.code : '';
 
-  const value: CartContextType = {
-    catalog,
-    catalogReady,
-    lines,
-    itemCount,
-    hasUnavailable: lines.some(l => !l.available),
-    addItem,
-    setQuantity,
-    removeItem,
-    clearCart,
-    couponCode: coupon ? coupon.code : '',
-    discountPercent,
-    applyCoupon,
-    removeCoupon,
-    deliveryType,
-    setDeliveryType,
-    zoneId,
-    setZoneId,
-    activeZones,
-    totals,
-    isCartOpen,
-    openCart: () => {
-      setIsCheckoutOpen(false);
-      setIsCartOpen(true);
-    },
-    closeCart: () => setIsCartOpen(false),
-    isCheckoutOpen,
-    openCheckout: () => {
-      setIsCartOpen(false);
-      setIsCheckoutOpen(true);
-    },
-    closeCheckout: () => setIsCheckoutOpen(false),
-    toast,
-    showToast,
-    dismissToast,
-    submitOrder,
-  };
+  const openCart = useCallback(() => {
+    setIsCheckoutOpen(false);
+    setIsCartOpen(true);
+  }, []);
+  const closeCart = useCallback(() => setIsCartOpen(false), []);
+  const openCheckout = useCallback(() => {
+    setIsCartOpen(false);
+    setIsCheckoutOpen(true);
+  }, []);
+  const closeCheckout = useCallback(() => setIsCheckoutOpen(false), []);
+
+  const value = useMemo<CartContextType>(
+    () => ({
+      catalog,
+      catalogReady,
+      lines,
+      itemCount,
+      hasUnavailable,
+      addItem,
+      setQuantity,
+      removeItem,
+      clearCart,
+      couponCode: activeCouponCode,
+      discountPercent,
+      applyCoupon,
+      removeCoupon,
+      deliveryType,
+      setDeliveryType,
+      zoneId,
+      setZoneId,
+      activeZones,
+      totals,
+      isCartOpen,
+      openCart,
+      closeCart,
+      isCheckoutOpen,
+      openCheckout,
+      closeCheckout,
+      toast,
+      showToast,
+      dismissToast,
+      submitOrder,
+    }),
+    [
+      catalog,
+      catalogReady,
+      lines,
+      itemCount,
+      hasUnavailable,
+      addItem,
+      setQuantity,
+      removeItem,
+      clearCart,
+      activeCouponCode,
+      discountPercent,
+      applyCoupon,
+      removeCoupon,
+      deliveryType,
+      zoneId,
+      activeZones,
+      totals,
+      isCartOpen,
+      openCart,
+      closeCart,
+      isCheckoutOpen,
+      openCheckout,
+      closeCheckout,
+      toast,
+      showToast,
+      dismissToast,
+      submitOrder,
+    ],
+  );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };

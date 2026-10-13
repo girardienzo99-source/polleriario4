@@ -153,7 +153,7 @@ export function EmptyState({ title, text, icon: Icon = Inbox, action }: { title:
 }
 
 type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
-export function Button({ variant = 'secondary', className = '', children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
+export function Button({ variant = 'secondary', className = '', type = 'button', children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
   const v: Record<BtnVariant, string> = {
     primary: 'bg-gradient-to-r from-fire-600 to-crimson-600 hover:from-fire-500 hover:to-crimson-500 text-white shadow-glow',
     secondary: 'bg-charcoal-800 hover:bg-charcoal-700 text-white border border-charcoal-700',
@@ -162,7 +162,7 @@ export function Button({ variant = 'secondary', className = '', children, ...pro
     success: 'bg-emerald-600 hover:bg-emerald-500 text-white',
   };
   return (
-    <button {...props} className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none ${v[variant]} ${className}`}>
+    <button type={type} {...props} className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none ${v[variant]} ${className}`}>
       {children}
     </button>
   );

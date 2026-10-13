@@ -17,7 +17,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { canAccess, ROLE_LABELS, ModuleId } from '@/lib/domain/permissions';
+import { canAccess, defaultModule, ROLE_LABELS, ModuleId } from '@/lib/domain/permissions';
 
 export type AdminTab = ModuleId;
 
@@ -66,7 +66,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         {/* Top Header */}
         <div className="min-h-0 flex-1 flex flex-col">
           <div className="p-4 border-b border-charcoal-800 flex items-center justify-between">
-            <Link href="/admin" onClick={onCloseMobile} className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                onSelectTab(defaultModule(role || 'admin'));
+                onCloseMobile();
+              }}
+              className="flex items-center gap-2.5 text-left"
+            >
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-fire-500 to-crimson-600 flex items-center justify-center text-white shadow-glow">
                 <Flame className="w-5 h-5" />
               </div>
@@ -76,7 +83,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 </span>
                 <span className="block text-[10px] text-charcoal-400 font-medium">Gestión Gastronómica</span>
               </div>
-            </Link>
+            </button>
 
             <div className="flex items-center gap-1">
               <Link
@@ -106,6 +113,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => {
                     onSelectTab(item.id);
                     onCloseMobile();

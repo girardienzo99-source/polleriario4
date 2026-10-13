@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { Menu, Clock, Store, Bell, Wallet, ExternalLink, AlertTriangle, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { PolleriaStore } from '@/lib/data/storage';
 import { canAccess, ModuleId } from '@/lib/domain/permissions';
 import { formatARS } from '@/lib/formatters';
-import { useStoreValue, useNow, toast } from './ui';
+import { useStoreVersion, useNow, toast } from './ui';
 
 interface AdminTopNavProps {
   onOpenMobileSidebar: () => void;
@@ -37,30 +37,43 @@ function beep() {
 export const AdminTopNav: React.FC<AdminTopNavProps> = ({ onOpenMobileSidebar, onNavigateToTab }) => {
   const { role } = useAuth();
   const now = useNow(30_000);
-  const orders = useStoreValue(() => PolleriaStore.getOrders(), []);
-  const sales = useStoreValue(() => PolleriaStore.getSales(), []);
-  const products = useStoreValue(() => PolleriaStore.getProducts(), []);
-  const ingredients = useStoreValue(() => PolleriaStore.getIngredients(), []);
-  const cashOpen = useStoreValue(() => PolleriaStore.isCashOpen(), false);
+  const v = useStoreVersion();
 
-  const newOrders = orders.filter(o => o.status === 'recibido');
-  const active = orders.filter(o => ['recibido', 'confirmado', 'en_preparacion'].includes(o.status));
+  const { newOrdersCount, latestNewOrderNumber, activeCount, lowStockCount, salesCount, salesTotal, cashOpen } = useMemo(() => {
+    const orders = PolleriaStore.getOrders();
+    const sales = PolleriaStore.getSales();
+    const products = PolleriaStore.getProducts();
+    const ingredients = PolleriaStore.getIngredients();
+    const cashOpen = PolleriaStore.isCashOpen();
 
-  const lowStockCount =
-    products.filter(p => p.active && p.stock_mode !== 'none' && p.current_stock <= p.min_stock).length +
-    ingredients.filter(i => i.current_stock <= i.min_stock).length;
+    const newOrders = orders.filter(o => o.status === 'recibido');
+    const active = orders.filter(o => ['recibido', 'confirmado', 'en_preparacion'].includes(o.status));
+    const lowStockCount =
+      products.filter(p => p.active && p.stock_mode !== 'none' && p.current_stock <= p.min_stock).length +
+      ingredients.filter(i => i.current_stock <= i.min_stock).length;
+    const salesTotal = sales.reduce((acc, s) => acc + s.total, 0);
 
-  const salesTotal = sales.reduce((acc, s) => acc + s.total, 0);
+    return {
+      newOrdersCount: newOrders.length,
+      latestNewOrderNumber: newOrders[0]?.order_number ?? '',
+      activeCount: active.length,
+      lowStockCount,
+      salesCount: sales.length,
+      salesTotal,
+      cashOpen,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v]);
 
   // Aviso de pedido nuevo (llega desde la tienda en otra pestaña vía evento storage)
   const prevNew = useRef<number | null>(null);
   useEffect(() => {
-    if (prevNew.current !== null && newOrders.length > prevNew.current) {
+    if (prevNew.current !== null && newOrdersCount > prevNew.current) {
       beep();
-      toast(`Nuevo pedido recibido: ${newOrders[0]?.order_number ?? ''}`, 'info');
+      toast(`Nuevo pedido recibido: ${latestNewOrderNumber}`, 'info');
     }
-    prevNew.current = newOrders.length;
-  }, [newOrders.length, newOrders]);
+    prevNew.current = newOrdersCount;
+  }, [newOrdersCount, latestNewOrderNumber]);
 
   const clock = new Date(now).toLocaleString('es-AR', {
     timeZone: 'America/Argentina/Cordoba', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -69,7 +82,7 @@ export const AdminTopNav: React.FC<AdminTopNavProps> = ({ onOpenMobileSidebar, o
   return (
     <header className="sticky top-0 z-30 h-14 sm:h-16 bg-charcoal-950/85 backdrop-blur-xl border-b border-charcoal-800 px-3 sm:px-4 flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        <button onClick={onOpenMobileSidebar} aria-label="Abrir menú" className="lg:hidden p-2 rounded-xl bg-charcoal-800 text-charcoal-300 hover:text-white shrink-0">
+        <button type="button" onClick={onOpenMobileSidebar} aria-label="Abrir menú" className="lg:hidden p-2 rounded-xl bg-charcoal-800 text-charcoal-300 hover:text-white shrink-0">
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
@@ -85,19 +98,21 @@ export const AdminTopNav: React.FC<AdminTopNavProps> = ({ onOpenMobileSidebar, o
           <span>{clock}</span>
         </div>
 
-        {canAccess(role, 'pos') && sales.length > 0 && (
+        {canAccess(role, 'pos') && salesCount > 0 && (
           <button
+            type="button"
             onClick={() => onNavigateToTab('pos')}
             title="Ventas registradas"
             className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-charcoal-900 border border-charcoal-800 text-charcoal-200 hover:border-charcoal-700 transition tabular-nums"
           >
             <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{sales.length} vta{sales.length === 1 ? '' : 's'} · {formatARS(salesTotal)}</span>
+            <span>{salesCount} vta{salesCount === 1 ? '' : 's'} · {formatARS(salesTotal)}</span>
           </button>
         )}
 
         {canAccess(role, 'stock') && lowStockCount > 0 && (
           <button
+            type="button"
             onClick={() => onNavigateToTab('stock')}
             title={`${lowStockCount} ítems con stock bajo o crítico`}
             className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition"
@@ -110,6 +125,7 @@ export const AdminTopNav: React.FC<AdminTopNavProps> = ({ onOpenMobileSidebar, o
 
         {canAccess(role, 'cash') && (
           <button
+            type="button"
             onClick={() => onNavigateToTab('cash')}
             className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition border ${
               cashOpen ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
@@ -123,14 +139,15 @@ export const AdminTopNav: React.FC<AdminTopNavProps> = ({ onOpenMobileSidebar, o
 
         {canAccess(role, 'kitchen') && (
           <button
+            type="button"
             onClick={() => onNavigateToTab('kitchen')}
             className="relative flex items-center gap-1 sm:gap-1.5 bg-charcoal-800 hover:bg-charcoal-700 text-charcoal-200 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition border border-charcoal-700"
-            aria-label={`${active.length} pedidos activos`}
+            aria-label={`${activeCount} pedidos activos`}
           >
             <Bell className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden sm:inline">Cocina</span>
-            <span className={`px-1.5 rounded-full font-black text-[11px] ${newOrders.length > 0 ? 'bg-fire-600 text-white animate-pulse' : 'bg-charcoal-700 text-charcoal-300'}`}>
-              {active.length}
+            <span className={`px-1.5 rounded-full font-black text-[11px] ${newOrdersCount > 0 ? 'bg-fire-600 text-white animate-pulse' : 'bg-charcoal-700 text-charcoal-300'}`}>
+              {activeCount}
             </span>
           </button>
         )}

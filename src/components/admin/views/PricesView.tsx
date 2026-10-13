@@ -50,7 +50,7 @@ export const PricesView: React.FC = () => {
       };
     });
 
-    updated.forEach(p => PolleriaStore.saveProduct(p));
+    PolleriaStore.saveProductsBulk(updated);
     setAppliedNotice(`¡Precios actualizados (+${percentIncrease}%) en ${updatedCount} productos!`);
     setTimeout(() => setAppliedNotice(null), 3500);
   };

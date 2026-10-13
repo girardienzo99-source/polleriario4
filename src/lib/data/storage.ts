@@ -95,12 +95,17 @@ export const STORE_EVENT = 'polleria_store_updated';
 
 const isBrowser = () => typeof window !== 'undefined';
 
+let versionChecked = false;
 function ensureVersion() {
-  if (!isBrowser()) return;
-  if (localStorage.getItem(STORAGE_KEYS.VERSION) === STORE_VERSION) return;
+  if (!isBrowser() || versionChecked) return;
+  if (localStorage.getItem(STORAGE_KEYS.VERSION) === STORE_VERSION) {
+    versionChecked = true;
+    return;
+  }
   Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
   localStorage.removeItem('polleria_cart');
   localStorage.setItem(STORAGE_KEYS.VERSION, STORE_VERSION);
+  versionChecked = true;
 }
 
 function getItem<T>(key: string, fallback: T): T {
@@ -181,6 +186,7 @@ export const PolleriaStore = {
     if (!isBrowser()) return;
     Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
     localStorage.setItem(STORAGE_KEYS.VERSION, STORE_VERSION);
+    versionChecked = true;
     window.dispatchEvent(new Event(STORE_EVENT));
   },
 
@@ -230,6 +236,12 @@ export const PolleriaStore = {
       throw new Error(`El SKU ${product.sku} ya está en uso`);
     }
     upsert(STORAGE_KEYS.PRODUCTS, list, product);
+  },
+  /** Guarda varios productos en una sola escritura atómica (ej. aumento masivo de precios). */
+  saveProductsBulk(products: Product[]): void {
+    transaction(() => {
+      setItem(STORAGE_KEYS.PRODUCTS, products);
+    });
   },
   /** Baja lógica: el producto se conserva para el historial de ventas. */
   deleteProduct(productId: string): void {

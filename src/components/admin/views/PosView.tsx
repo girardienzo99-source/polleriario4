@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import Image from 'next/image';
 import { Search, Trash2, Plus, Minus, Printer, FileText, Store, Lock, X, ChefHat, History } from 'lucide-react';
 import { Product, ProductVariant, PaymentMethod, Sale } from '@/types/database';
 import { PolleriaStore, costOf } from '@/lib/data/storage';
@@ -213,7 +212,7 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
             </div>
             <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
               {[{ id: 'all', name: 'Todo' }, ...categories].map(c => (
-                <button key={c.id} onClick={() => setCategory(c.id)}
+                <button key={c.id} type="button" onClick={() => setCategory(c.id)}
                   className={`px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition ${category === c.id ? 'bg-fire-600 text-white' : 'bg-charcoal-800 text-charcoal-300 hover:bg-charcoal-700'}`}>
                   {c.name}
                 </button>
@@ -231,10 +230,10 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
                   const out = !p.is_available || (s.tracked && s.available <= 0);
                   const inTicketQty = lines.filter(l => l.productId === p.id).reduce((a, b) => a + b.quantity, 0);
                   return (
-                    <button key={p.id} disabled={out} onClick={() => add(p)}
+                    <button key={p.id} type="button" disabled={out} onClick={() => add(p)}
                       className="group relative text-left rounded-2xl border border-charcoal-800 bg-charcoal-900 hover:border-fire-500/60 overflow-hidden transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed">
-                      <div className="relative aspect-[4/3] bg-charcoal-950">
-                        <Image src={p.image_url} alt={p.name} fill sizes="(max-width: 640px) 50vw, 220px" className="object-cover group-hover:scale-105 transition duration-500" />
+                      <div className="relative aspect-[4/3] bg-charcoal-950 overflow-hidden">
+                        <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                         <div className="absolute top-2 left-2 flex gap-1">
                           {out ? <Badge tone="red">Agotado</Badge> : s.tracked && s.available <= p.min_stock ? <Badge tone="amber">Quedan {s.available}</Badge> : null}
                         </div>
@@ -317,9 +316,9 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
                 <p className="text-[10px] text-charcoal-400">{formatARS(l.unit)} c/u</p>
               </div>
               <div className="flex items-center gap-1.5">
-                <button aria-label="Restar" onClick={() => setQty(l.key, l.quantity - 1)} className="w-7 h-7 rounded-lg bg-charcoal-800 hover:bg-charcoal-700 flex items-center justify-center"><Minus className="w-3 h-3" /></button>
+                <button type="button" aria-label="Restar" onClick={() => setQty(l.key, l.quantity - 1)} className="w-7 h-7 rounded-lg bg-charcoal-800 hover:bg-charcoal-700 flex items-center justify-center"><Minus className="w-3 h-3" /></button>
                 <span className="w-6 text-center text-xs font-black text-white tabular-nums">{l.quantity}</span>
-                <button aria-label="Sumar" onClick={() => add(l.product!, l.variant)} className="w-7 h-7 rounded-lg bg-charcoal-800 hover:bg-charcoal-700 flex items-center justify-center"><Plus className="w-3 h-3" /></button>
+                <button type="button" aria-label="Sumar" onClick={() => add(l.product!, l.variant)} className="w-7 h-7 rounded-lg bg-charcoal-800 hover:bg-charcoal-700 flex items-center justify-center"><Plus className="w-3 h-3" /></button>
               </div>
               <span className="w-20 text-right text-xs font-black text-white tabular-nums">{formatARS(l.unit * l.quantity)}</span>
             </div>
@@ -329,7 +328,7 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
         <div className="border-t border-charcoal-800 px-4 sm:px-5 py-4 space-y-3">
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
             {PAYMENTS.map(p => (
-              <button key={p.id} onClick={() => setPayment(p.id)}
+              <button type="button" key={p.id} onClick={() => setPayment(p.id)}
                 className={`rounded-lg py-2 px-1 text-[10px] font-bold transition ${payment === p.id ? 'bg-fire-600 text-white' : 'bg-charcoal-800 text-charcoal-300 hover:bg-charcoal-700'}`}>{p.label}</button>
             ))}
           </div>
@@ -409,12 +408,12 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
       <Modal open={!!variantFor} onClose={() => setVariantFor(null)} title={variantFor ? `Elegí la opción — ${variantFor.name}` : ''} size="sm">
         <div className="space-y-2">
           {variantFor?.variants?.filter(x => x.active).map(x => (
-            <button key={x.id} onClick={() => add(variantFor, x)} className="w-full flex items-center justify-between rounded-xl border border-charcoal-700 hover:border-fire-500 bg-charcoal-950 px-4 py-3 text-sm transition">
+            <button type="button" key={x.id} onClick={() => add(variantFor, x)} className="w-full flex items-center justify-between rounded-xl border border-charcoal-700 hover:border-fire-500 bg-charcoal-950 px-4 py-3 text-sm transition">
               <span className="font-bold text-white">{x.name}</span>
               <span className="font-black text-fire-400">{formatARS(x.final_price)}</span>
             </button>
           ))}
-          <button onClick={() => setVariantFor(null)} className="w-full text-xs text-charcoal-400 py-2 flex items-center justify-center gap-1"><X className="w-3 h-3" /> Cancelar</button>
+          <button type="button" onClick={() => setVariantFor(null)} className="w-full text-xs text-charcoal-400 py-2 flex items-center justify-center gap-1"><X className="w-3 h-3" /> Cancelar</button>
         </div>
       </Modal>
 
