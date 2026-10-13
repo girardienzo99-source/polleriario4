@@ -18,6 +18,7 @@ const sans = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://polleriarioscuarto.com.ar'),
   title: 'Pollería Los Campeones | Pollo al spiedo y a la leña en Río Cuarto',
   description:
     'Pollos al spiedo marinados 12 horas, pollo a la parrilla con leña de quebracho, milanesas, empanadas y guarniciones caseras. Pedí online para retirar o con envío en Río Cuarto, Córdoba. Desarrollado por Río Cuarto Web.',
