@@ -19,6 +19,7 @@ export const KitchenKdsView: React.FC = () => {
   const now = useNow(15_000);
   const [full, setFull] = useState(false);
   const [filter, setFilter] = useState<'all' | 'retiro' | 'delivery'>('all');
+  const [mobileStage, setMobileStage] = useState<number | 'all'>('all');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const { allOrders, spiedo } = useMemo(() => ({
@@ -126,12 +127,12 @@ export const KitchenKdsView: React.FC = () => {
               <Flame className="w-4 h-4 text-fire-400" /> Spiedo listo: <span className={spiedo.current_stock <= spiedo.min_stock ? 'text-amber-400' : 'text-emerald-400'}>{spiedo.current_stock}</span>
             </span>
           )}
-          <Button onClick={toggleFull}>{full ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />} Pantalla completa</Button>
+          <Button onClick={toggleFull} className="hidden sm:inline-flex">{full ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />} Pantalla completa</Button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="flex rounded-xl bg-charcoal-900 border border-charcoal-800 p-1">
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <div className="no-scrollbar flex overflow-x-auto rounded-xl bg-charcoal-900 border border-charcoal-800 p-1">
           {[
             { id: 'all' as const, label: `Todos (${allOrders.length})` },
             { id: 'retiro' as const, label: `Mostrador (${allOrders.filter(o => o.delivery_type === 'retiro').length})` },
@@ -140,7 +141,7 @@ export const KitchenKdsView: React.FC = () => {
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
                 filter === f.id ? 'bg-fire-600 text-white' : 'text-charcoal-400 hover:text-white'
               }`}
             >
@@ -148,13 +149,47 @@ export const KitchenKdsView: React.FC = () => {
             </button>
           ))}
         </div>
+
+        {/* Selector de etapa para móviles */}
+        <div className="no-scrollbar flex overflow-x-auto rounded-xl bg-charcoal-900 border border-charcoal-800 p-1 md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileStage('all')}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap ${
+              mobileStage === 'all' ? 'bg-charcoal-700 text-white' : 'text-charcoal-400'
+            }`}
+          >
+            3 etapas
+          </button>
+          {COLUMNS.map((col, idx) => {
+            const count = orders.filter(o => col.status.includes(o.status)).length;
+            return (
+              <button
+                key={col.title}
+                type="button"
+                onClick={() => setMobileStage(idx)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap ${
+                  mobileStage === idx ? 'bg-fire-600 text-white' : 'text-charcoal-400'
+                }`}
+              >
+                {col.title.split(' ')[0]} ({count})
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {COLUMNS.map(col => {
+      <div className="grid gap-4 md:grid-cols-3">
+        {COLUMNS.map((col, idx) => {
           const list = orders.filter(o => col.status.includes(o.status));
+          const hiddenOnMobile = mobileStage !== 'all' && mobileStage !== idx;
           return (
-            <section key={col.title} className="rounded-2xl bg-charcoal-950/60 border border-charcoal-800 p-3 min-h-[300px]">
+            <section
+              key={col.title}
+              className={`rounded-2xl bg-charcoal-950/60 border border-charcoal-800 p-3 min-h-[220px] md:min-h-[300px] ${
+                hiddenOnMobile ? 'hidden md:block' : 'block'
+              }`}
+            >
               <h2 className={`text-xs font-black uppercase tracking-wider mb-3 px-1 flex justify-between ${col.accent}`}>{col.title}<span className="text-charcoal-400">{list.length}</span></h2>
               <div className="space-y-3">
                 {list.length ? list.map(o => <Card key={o.id} o={o} />) : <EmptyState title="Sin pedidos" />}

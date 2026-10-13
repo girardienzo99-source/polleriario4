@@ -71,6 +71,34 @@ export const StockView: React.FC = () => {
     </tr>
   );
 
+  const mobileCard = (kind: Adjust['kind'], id: string, name: string, unit: string, current: number, min: number, extra?: React.ReactNode) => (
+    <div key={id} className="rounded-xl border border-charcoal-800 bg-charcoal-950/60 p-3 space-y-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-bold text-white text-sm leading-tight">{name}</p>
+          {extra}
+        </div>
+        <div className="shrink-0">
+          {current <= 0 ? <Badge tone="red">Sin stock</Badge> : current <= min ? <Badge tone="amber">Bajo mínimo</Badge> : <Badge tone="green">OK</Badge>}
+        </div>
+      </div>
+      <div className="flex items-center justify-between text-xs pt-1 border-t border-charcoal-800/60">
+        <div>
+          <span className="text-charcoal-400">Stock actual: </span>
+          <strong className="text-white font-black tabular-nums">{current} {unit}</strong>
+          <span className="text-charcoal-500 ml-2">(Mín: {min})</span>
+        </div>
+      </div>
+      {canAdjust && (
+        <div className="grid grid-cols-3 gap-1.5 pt-1">
+          <Button variant="ghost" className="w-full py-2 text-xs" onClick={() => open(kind, id, name, unit, current, 'in')}>+ Entrada</Button>
+          <Button variant="ghost" className="w-full py-2 text-xs" onClick={() => open(kind, id, name, unit, current, 'out')}>− Salida</Button>
+          <Button variant="ghost" className="w-full py-2 text-xs" onClick={() => open(kind, id, name, unit, current, 'count')}><SlidersHorizontal className="w-3.5 h-3.5" /> Contar</Button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       <PageHeader icon={Boxes} title="Stock e inventario"
@@ -84,13 +112,13 @@ export const StockView: React.FC = () => {
         <StatCard label="Valorizado (insumos)" value={formatARS(value)} tone="fire" hint="Stock × último costo" />
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex rounded-xl bg-charcoal-900 border border-charcoal-800 p-1">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center justify-between">
+        <div className="flex rounded-xl bg-charcoal-900 border border-charcoal-800 p-1 overflow-x-auto no-scrollbar">
           {([['insumos', 'Insumos'], ['productos', 'Productos terminados'], ['movimientos', 'Movimientos']] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${tab === k ? 'bg-fire-600 text-white' : 'text-charcoal-300 hover:text-white'}`}>{l}</button>
+            <button key={k} onClick={() => setTab(k)} className={`flex-1 sm:flex-initial whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold ${tab === k ? 'bg-fire-600 text-white' : 'text-charcoal-300 hover:text-white'}`}>{l}</button>
           ))}
         </div>
-        <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+        <div className="flex flex-wrap items-center gap-2 flex-1 sm:flex-initial">
           {tab !== 'movimientos' && (
             <>
               <button
@@ -106,7 +134,7 @@ export const StockView: React.FC = () => {
                 <span>Solo bajo mínimo</span>
                 {low > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/30 text-[10px] font-black">{low}</span>}
               </button>
-              <div className="relative flex-1 sm:w-64">
+              <div className="relative flex-1 min-w-[180px] sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal-500" />
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o SKU" className={`${inputCls} pl-9`} />
               </div>
@@ -117,17 +145,27 @@ export const StockView: React.FC = () => {
 
       {tab === 'insumos' && (
         <Card>
-          <Table head={['Insumo', 'Stock', 'Mínimo', 'Estado', '']} empty={<EmptyState title="Sin insumos" />}>
-            {ingList.map(i => row('ingredient', i.id, i.name, i.unit_measure, i.current_stock, i.min_stock, <p className="text-[10px] text-charcoal-500">{i.sku} · {formatARS(i.cost_price)}/{i.unit_measure}</p>))}
-          </Table>
+          <div className="md:hidden space-y-2.5">
+            {ingList.length === 0 ? <EmptyState title="Sin insumos" /> : ingList.map(i => mobileCard('ingredient', i.id, i.name, i.unit_measure, i.current_stock, i.min_stock, <p className="text-[11px] text-charcoal-400 mt-0.5">{i.sku} · {formatARS(i.cost_price)}/{i.unit_measure}</p>))}
+          </div>
+          <div className="hidden md:block">
+            <Table head={['Insumo', 'Stock', 'Mínimo', 'Estado', '']} empty={<EmptyState title="Sin insumos" />}>
+              {ingList.map(i => row('ingredient', i.id, i.name, i.unit_measure, i.current_stock, i.min_stock, <p className="text-[10px] text-charcoal-500">{i.sku} · {formatARS(i.cost_price)}/{i.unit_measure}</p>))}
+            </Table>
+          </div>
         </Card>
       )}
       {tab === 'productos' && (
         <Card>
           <p className="text-[11px] text-charcoal-400 mb-3">Productos que se venden desde stock terminado (tandas, elaborados por adelantado y bebidas). Los elaborados al momento consumen su receta en cada venta.</p>
-          <Table head={['Producto', 'Stock', 'Mínimo', 'Estado', '']} empty={<EmptyState title="Sin productos con stock" />}>
-            {prodList.map(p => row('product', p.id, p.name, p.unit_measure, p.current_stock, p.min_stock, <p className="text-[10px] text-charcoal-500">{p.stock_mode === 'batch' ? 'Producción propia' : 'Reventa'}</p>))}
-          </Table>
+          <div className="md:hidden space-y-2.5">
+            {prodList.length === 0 ? <EmptyState title="Sin productos con stock" /> : prodList.map(p => mobileCard('product', p.id, p.name, p.unit_measure, p.current_stock, p.min_stock, <p className="text-[11px] text-charcoal-400 mt-0.5">{p.stock_mode === 'batch' ? 'Producción propia' : 'Reventa'}</p>))}
+          </div>
+          <div className="hidden md:block">
+            <Table head={['Producto', 'Stock', 'Mínimo', 'Estado', '']} empty={<EmptyState title="Sin productos con stock" />}>
+              {prodList.map(p => row('product', p.id, p.name, p.unit_measure, p.current_stock, p.min_stock, <p className="text-[10px] text-charcoal-500">{p.stock_mode === 'batch' ? 'Producción propia' : 'Reventa'}</p>))}
+            </Table>
+          </div>
         </Card>
       )}
       {tab === 'movimientos' && (

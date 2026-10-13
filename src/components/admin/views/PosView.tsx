@@ -47,6 +47,7 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
   const [sendToKitchen, setSendToKitchen] = useState(true);
   const [kitchenNotes, setKitchenNotes] = useState('');
   const [showRecent, setShowRecent] = useState(false);
+  const [mobilePane, setMobilePane] = useState<'catalog' | 'ticket'>('catalog');
   const [busy, setBusy] = useState(false);
 
   const { products, categories, customers, cash, sales } = useMemo(() => ({
@@ -65,6 +66,7 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
     return { ...l, product: p, variant, unit, name: p ? (variant ? `${p.name} (${variant.name})` : p.name) : '—' };
   }).filter(l => l.product);
 
+  const itemCount = resolved.reduce((acc, l) => acc + l.quantity, 0);
   const totals = computeCartTotals(resolved.map(l => ({ unitPrice: l.unit, quantity: l.quantity })), { discountPercent: discountPct });
   const subtotal = totals.subtotal / 100;
   const discount = totals.discount / 100;
@@ -154,6 +156,7 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
       });
       toast(`Venta ${sale.sale_number} registrada${sendToKitchen ? ' · Comanda enviada a Cocina' : ''}${change > 0 ? ` · Vuelto ${formatARS(change)}` : ''}`);
       reset();
+      setMobilePane('catalog');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'No se pudo registrar la venta', 'error');
     } finally {
@@ -168,79 +171,110 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
   });
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 xl:h-[calc(100vh-8rem)]">
-      {/* Catálogo */}
-      <div className="xl:col-span-7 flex flex-col gap-4 min-h-0">
-        <div className="rounded-2xl border border-charcoal-800 bg-charcoal-900/70 p-3 space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal-500" />
-            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre, SKU o código de barras"
-              className={`${inputCls} pl-9 py-2.5`}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  const exact = products.find(p => p.barcode && p.barcode === search.trim());
-                  if (exact) { add(exact); setSearch(''); }
-                }
-              }} />
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {[{ id: 'all', name: 'Todo' }, ...categories].map(c => (
-              <button key={c.id} onClick={() => setCategory(c.id)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition ${category === c.id ? 'bg-fire-600 text-white' : 'bg-charcoal-800 text-charcoal-300 hover:bg-charcoal-700'}`}>
-                {c.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto min-h-0 pr-1">
-          {visible.length === 0 ? (
-            <EmptyState title="No hay productos que coincidan" />
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-4 gap-3">
-              {visible.map(p => {
-                const s = stockInfo(p);
-                const out = !p.is_available || (s.tracked && s.available <= 0);
-                return (
-                  <button key={p.id} disabled={out} onClick={() => add(p)}
-                    className="group text-left rounded-2xl border border-charcoal-800 bg-charcoal-900 hover:border-fire-500/60 overflow-hidden transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed">
-                    <div className="relative aspect-[4/3] bg-charcoal-950">
-                      <Image src={p.image_url} alt={p.name} fill sizes="(max-width: 640px) 50vw, 220px" className="object-cover group-hover:scale-105 transition duration-500" />
-                      <div className="absolute top-2 left-2 flex gap-1">
-                        {out ? <Badge tone="red">Agotado</Badge> : s.tracked && s.available <= p.min_stock ? <Badge tone="amber">Quedan {s.available}</Badge> : null}
-                      </div>
-                    </div>
-                    <div className="p-3">
-                      <p className="text-xs font-bold text-white line-clamp-2 min-h-[2rem]">{p.name}</p>
-                      <div className="flex items-center justify-between mt-1.5">
-                        <span className="text-sm font-black text-fire-400">{formatARS(p.sale_price)}</span>
-                        {p.variants?.length ? <span className="text-[10px] text-charcoal-400">{p.variants.length} opciones</span> : null}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+    <div className="space-y-4 lg:space-y-0">
+      {/* Selector móvil/tablet entre Catálogo y Ticket */}
+      <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-charcoal-800 bg-charcoal-900 p-1.5 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobilePane('catalog')}
+          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black transition ${
+            mobilePane === 'catalog' ? 'bg-fire-600 text-white shadow-glow' : 'text-charcoal-300 hover:text-white'
+          }`}
+        >
+          <Store className="w-4 h-4" />
+          <span>Catálogo ({visible.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobilePane('ticket')}
+          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black transition ${
+            mobilePane === 'ticket' ? 'bg-fire-600 text-white shadow-glow' : 'text-charcoal-300 hover:text-white'
+          }`}
+        >
+          <Printer className="w-4 h-4" />
+          <span>Ticket ({itemCount}) · {formatARS(total)}</span>
+        </button>
       </div>
 
-      {/* Ticket */}
-      <div className="xl:col-span-5 flex flex-col rounded-2xl border border-charcoal-800 bg-charcoal-900/70 min-h-0">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-charcoal-800">
-          <div>
-            <h2 className="text-sm font-black text-white flex items-center gap-2"><Store className="w-4 h-4 text-fire-400" /> Venta de mostrador</h2>
-            <p className="text-[11px] text-charcoal-400">{cashOpen ? `Caja abierta por ${cash.user_name}` : 'Caja cerrada'}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:h-[calc(100vh-8rem)]">
+        {/* Catálogo */}
+        <div className={`lg:col-span-7 flex flex-col gap-4 min-h-0 ${mobilePane === 'ticket' ? 'hidden lg:flex' : 'flex'}`}>
+          <div className="rounded-2xl border border-charcoal-800 bg-charcoal-900/70 p-3 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal-500" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre, SKU o código de barras"
+                className={`${inputCls} pl-9 py-2.5`}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const exact = products.find(p => p.barcode && p.barcode === search.trim());
+                    if (exact) { add(exact); setSearch(''); }
+                  }
+                }} />
+            </div>
+            <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+              {[{ id: 'all', name: 'Todo' }, ...categories].map(c => (
+                <button key={c.id} onClick={() => setCategory(c.id)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition ${category === c.id ? 'bg-fire-600 text-white' : 'bg-charcoal-800 text-charcoal-300 hover:bg-charcoal-700'}`}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            {sales.length > 0 && (
-              <Button variant="ghost" onClick={() => setShowRecent(true)} title="Ver últimas ventas y reimprimir tickets">
-                <History className="w-3.5 h-3.5" /> Recientes ({sales.length})
-              </Button>
+
+          <div className="flex-1 overflow-y-auto min-h-0 pr-0.5 sm:pr-1">
+            {visible.length === 0 ? (
+              <EmptyState title="No hay productos que coincidan" />
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-3">
+                {visible.map(p => {
+                  const s = stockInfo(p);
+                  const out = !p.is_available || (s.tracked && s.available <= 0);
+                  const inTicketQty = lines.filter(l => l.productId === p.id).reduce((a, b) => a + b.quantity, 0);
+                  return (
+                    <button key={p.id} disabled={out} onClick={() => add(p)}
+                      className="group relative text-left rounded-2xl border border-charcoal-800 bg-charcoal-900 hover:border-fire-500/60 overflow-hidden transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed">
+                      <div className="relative aspect-[4/3] bg-charcoal-950">
+                        <Image src={p.image_url} alt={p.name} fill sizes="(max-width: 640px) 50vw, 220px" className="object-cover group-hover:scale-105 transition duration-500" />
+                        <div className="absolute top-2 left-2 flex gap-1">
+                          {out ? <Badge tone="red">Agotado</Badge> : s.tracked && s.available <= p.min_stock ? <Badge tone="amber">Quedan {s.available}</Badge> : null}
+                        </div>
+                        {inTicketQty > 0 && (
+                          <span className="absolute top-2 right-2 grid h-6 min-w-6 place-items-center rounded-full bg-fire-600 px-1.5 text-[11px] font-black text-white shadow-lg">
+                            {inTicketQty}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-2.5 sm:p-3">
+                        <p className="text-xs font-bold text-white line-clamp-2 min-h-[2rem]">{p.name}</p>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-sm font-black text-fire-400">{formatARS(p.sale_price)}</span>
+                          {p.variants?.length ? <span className="text-[10px] text-charcoal-400">{p.variants.length} opc.</span> : null}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
-            {resolved.length > 0 && <Button variant="ghost" onClick={reset}><Trash2 className="w-3.5 h-3.5" /> Vaciar</Button>}
           </div>
         </div>
+
+        {/* Ticket */}
+        <div className={`lg:col-span-5 flex flex-col rounded-2xl border border-charcoal-800 bg-charcoal-900/70 min-h-0 ${mobilePane === 'catalog' ? 'hidden lg:flex' : 'flex'}`}>
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 sm:py-4 border-b border-charcoal-800">
+            <div>
+              <h2 className="text-sm font-black text-white flex items-center gap-2"><Store className="w-4 h-4 text-fire-400" /> Venta de mostrador</h2>
+              <p className="text-[11px] text-charcoal-400">{cashOpen ? `Caja abierta por ${cash.user_name}` : 'Caja cerrada'}</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {sales.length > 0 && (
+                <Button variant="ghost" onClick={() => setShowRecent(true)} title="Ver últimas ventas y reimprimir tickets">
+                  <History className="w-3.5 h-3.5" /> Recientes ({sales.length})
+                </Button>
+              )}
+              {resolved.length > 0 && <Button variant="ghost" onClick={reset}><Trash2 className="w-3.5 h-3.5" /> Vaciar</Button>}
+            </div>
+          </div>
 
         {!cashOpen && (
           <div className="m-4 mb-0 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-[11px] text-amber-200">
@@ -292,11 +326,11 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
           ))}
         </div>
 
-        <div className="border-t border-charcoal-800 px-5 py-4 space-y-3">
-          <div className="grid grid-cols-5 gap-1">
+        <div className="border-t border-charcoal-800 px-4 sm:px-5 py-4 space-y-3">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
             {PAYMENTS.map(p => (
               <button key={p.id} onClick={() => setPayment(p.id)}
-                className={`rounded-lg py-2 text-[10px] font-bold transition ${payment === p.id ? 'bg-fire-600 text-white' : 'bg-charcoal-800 text-charcoal-300 hover:bg-charcoal-700'}`}>{p.label}</button>
+                className={`rounded-lg py-2 px-1 text-[10px] font-bold transition ${payment === p.id ? 'bg-fire-600 text-white' : 'bg-charcoal-800 text-charcoal-300 hover:bg-charcoal-700'}`}>{p.label}</button>
             ))}
           </div>
           {payment === 'efectivo' && (
@@ -344,13 +378,33 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
             <ChefHat className="w-3.5 h-3.5 text-fire-400" />
             <span>Enviar comanda a Cocina (KDS)</span>
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button variant="primary" className="py-3" disabled={!resolved.length || !cashOpen || busy} onClick={() => checkout(false)}><Printer className="w-4 h-4" /> Cobrar</Button>
             <Button className="py-3" disabled={!resolved.length || !cashOpen || busy} onClick={() => checkout(true)} title="Genera un comprobante de simulación (sin CAE) hasta conectar ARCA"><FileText className="w-4 h-4" /> Cobrar + comprobante</Button>
           </div>
           <p className="text-[10px] text-charcoal-500 text-center">Los comprobantes son simulaciones sin validez fiscal hasta conectar ARCA.</p>
         </div>
+        </div>
       </div>
+
+      {/* Barra flotante en móvil/tablet cuando hay productos en el ticket */}
+      {mobilePane === 'catalog' && itemCount > 0 && (
+        <div className="fixed bottom-16 inset-x-3.5 z-20 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMobilePane('ticket')}
+            className="flex w-full items-center justify-between rounded-2xl border border-fire-400/40 bg-gradient-to-r from-fire-600 to-crimson-600 px-4 py-3 text-white shadow-2xl"
+          >
+            <span className="flex items-center gap-2.5 text-xs font-black">
+              <span className="grid h-6 min-w-6 place-items-center rounded-full bg-black/30 px-1.5 text-[11px] tabular-nums">
+                {itemCount}
+              </span>
+              Ver Ticket y Cobrar
+            </span>
+            <span className="text-base font-black tabular-nums">{formatARS(total)} →</span>
+          </button>
+        </div>
+      )}
 
       <Modal open={!!variantFor} onClose={() => setVariantFor(null)} title={variantFor ? `Elegí la opción — ${variantFor.name}` : ''} size="sm">
         <div className="space-y-2">

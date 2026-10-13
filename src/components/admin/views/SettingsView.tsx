@@ -65,10 +65,10 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div className="bg-charcoal-900 p-6 rounded-3xl border border-charcoal-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-charcoal-900 p-4 sm:p-6 rounded-3xl border border-charcoal-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <Settings className="w-6 h-6 text-fire-500" />
+          <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+            <Settings className="w-6 h-6 text-fire-500 shrink-0" />
             Configuración General del Negocio
           </h1>
           <p className="text-xs text-charcoal-400 mt-1">
@@ -78,7 +78,7 @@ export const SettingsView: React.FC = () => {
 
         <button
           onClick={handleResetDemoData}
-          className="flex items-center gap-1.5 px-4 py-2 bg-charcoal-800 hover:bg-red-500/20 text-charcoal-300 hover:text-red-400 rounded-xl text-xs font-bold border border-charcoal-700 transition"
+          className="w-full sm:w-auto justify-center flex items-center gap-1.5 px-4 py-2.5 sm:py-2 bg-charcoal-800 hover:bg-red-500/20 text-charcoal-300 hover:text-red-400 rounded-xl text-xs font-bold border border-charcoal-700 transition"
         >
           <RotateCcw className="w-4 h-4" />
           Restaurar Datos Demo
@@ -99,9 +99,9 @@ export const SettingsView: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Store identity */}
-        <div className="lg:col-span-7 bg-charcoal-900 rounded-3xl border border-charcoal-800 p-6 space-y-4">
+        <div className="lg:col-span-7 bg-charcoal-900 rounded-3xl border border-charcoal-800 p-4 sm:p-6 space-y-4">
           <h3 className="font-black text-base text-white flex items-center gap-2">
-            <Store className="w-5 h-5 text-fire-500" />
+            <Store className="w-5 h-5 text-fire-500 shrink-0" />
             Identidad del Comercio Gastronómico
           </h3>
 
@@ -112,7 +112,7 @@ export const SettingsView: React.FC = () => {
                 type="text"
                 value={business.trade_name}
                 onChange={e => setBusiness({ ...business, trade_name: e.target.value })}
-                className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
+                className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-base sm:text-xs text-white"
               />
             </div>
 
@@ -122,18 +122,18 @@ export const SettingsView: React.FC = () => {
                 type="text"
                 value={business.name}
                 onChange={e => setBusiness({ ...business, name: e.target.value })}
-                className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
+                className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-base sm:text-xs text-white"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="font-bold text-charcoal-300 block mb-1">CUIT *</label>
                 <input
                   type="text"
                   value={business.cuit}
                   onChange={e => setBusiness({ ...business, cuit: e.target.value })}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white font-mono"
+                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-base sm:text-xs text-white font-mono"
                 />
               </div>
 
@@ -143,7 +143,7 @@ export const SettingsView: React.FC = () => {
                   type="text"
                   value={business.iva_condition}
                   onChange={e => setBusiness({ ...business, iva_condition: e.target.value })}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
+                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-base sm:text-xs text-white"
                 />
               </div>
             </div>
@@ -154,18 +154,18 @@ export const SettingsView: React.FC = () => {
                 type="text"
                 value={business.address}
                 onChange={e => setBusiness({ ...business, address: e.target.value })}
-                className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
+                className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-base sm:text-xs text-white"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="font-bold text-charcoal-300 block mb-1">Teléfono Fijo / Local</label>
                 <input
                   type="text"
                   value={business.phone}
                   onChange={e => setBusiness({ ...business, phone: e.target.value })}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
+                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-base sm:text-xs text-white"
                 />
               </div>
 
@@ -175,7 +175,7 @@ export const SettingsView: React.FC = () => {
                   type="text"
                   value={business.whatsapp}
                   onChange={e => setBusiness({ ...business, whatsapp: e.target.value })}
-                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-white"
+                  className="w-full bg-charcoal-950 border border-charcoal-700 rounded-xl p-2.5 text-base sm:text-xs text-white"
                 />
               </div>
             </div>
@@ -183,7 +183,7 @@ export const SettingsView: React.FC = () => {
             <div className="pt-2 flex justify-end">
               <button
                 type="submit"
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-fire-600 hover:bg-fire-500 text-white font-black rounded-xl shadow-glow text-xs"
+                className="w-full sm:w-auto justify-center flex items-center gap-1.5 px-5 py-3 sm:py-2.5 bg-fire-600 hover:bg-fire-500 text-white font-black rounded-xl shadow-glow text-xs"
               >
                 <Save className="w-4 h-4" />
                 Guardar Cambios
@@ -193,7 +193,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Right: Delivery zones */}
-        <div className="lg:col-span-5 bg-charcoal-900 rounded-3xl border border-charcoal-800 p-6 space-y-4">
+        <div className="lg:col-span-5 bg-charcoal-900 rounded-3xl border border-charcoal-800 p-4 sm:p-6 space-y-4">
           <h3 className="font-black text-base text-white flex items-center gap-2">
             <MapPin className="w-5 h-5 text-blue-400" />
             Zonas y Tarifas de Delivery

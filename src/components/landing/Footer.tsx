@@ -16,15 +16,23 @@ export function Footer() {
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-charcoal-400">
               Pollo al spiedo, horno y parrilla con leña. Cocina casera para retirar o con envío en Río Cuarto.
             </p>
-            <a
-              href={whatsappLink('Hola Los Campeones, quiero hacer un pedido.')}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-ghost mt-6 px-5 py-2.5"
-            >
-              <WhatsAppIcon className="h-4 w-4 text-emerald-400" />
-              Pedí por WhatsApp
-            </a>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a
+                href={whatsappLink('Hola Los Campeones, quiero hacer un pedido.')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-ghost px-5 py-2.5"
+              >
+                <WhatsAppIcon className="h-4 w-4 text-emerald-400" />
+                Pedí por WhatsApp
+              </a>
+              <Link
+                href="/login"
+                className="btn-ghost border-fire-500/30 bg-fire-600/10 px-5 py-2.5 text-fire-200 hover:border-fire-400 hover:bg-fire-600/20"
+              >
+                Panel Administrativo
+              </Link>
+            </div>
           </div>
 
           <nav aria-label="Secciones del sitio" className="md:col-span-3">

@@ -71,12 +71,12 @@ export function Toaster() {
     return () => window.removeEventListener(TOAST_EVENT, on);
   }, []);
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm" aria-live="polite">
+    <div className="fixed bottom-20 left-4 right-4 sm:left-auto sm:bottom-4 sm:right-4 z-[100] flex flex-col gap-2 sm:max-w-sm pointer-events-none" aria-live="polite">
       {items.map(t => {
         const Icon = t.kind === 'error' ? AlertTriangle : t.kind === 'ok' ? CheckCircle2 : Info;
         const cls = t.kind === 'error' ? 'border-red-500/40 text-red-200' : t.kind === 'ok' ? 'border-emerald-500/40 text-emerald-200' : 'border-sky-500/40 text-sky-200';
         return (
-          <div key={t.id} className={`flex items-start gap-2.5 rounded-xl border bg-charcoal-900/95 backdrop-blur px-4 py-3 text-xs font-semibold shadow-2xl animate-[fadeIn_.2s_ease-out] ${cls}`}>
+          <div key={t.id} className={`pointer-events-auto flex items-start gap-2.5 rounded-xl border bg-charcoal-900/95 backdrop-blur px-4 py-3 text-xs font-semibold shadow-2xl animate-[fadeIn_.2s_ease-out] ${cls}`}>
             <Icon className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{t.text}</span>
           </div>
@@ -89,7 +89,7 @@ export function Toaster() {
 // ------------------------------------------------------------------ layout
 export function PageHeader({ title, subtitle, actions, icon: Icon }: { title: string; subtitle?: string; actions?: React.ReactNode; icon?: React.ElementType }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-5 sm:mb-6">
       <div className="flex items-start gap-3">
         {Icon && (
           <div className="w-10 h-10 rounded-xl bg-fire-500/10 border border-fire-500/20 flex items-center justify-center text-fire-400 shrink-0">
@@ -97,7 +97,7 @@ export function PageHeader({ title, subtitle, actions, icon: Icon }: { title: st
           </div>
         )}
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">{title}</h1>
+          <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight">{title}</h1>
           {subtitle && <p className="text-xs text-charcoal-400 mt-1">{subtitle}</p>}
         </div>
       </div>
@@ -110,12 +110,12 @@ export function Card({ children, className = '', title, action }: { children: Re
   return (
     <section className={`rounded-2xl border border-charcoal-800 bg-charcoal-900/70 ${className}`}>
       {(title || action) && (
-        <header className="flex items-center justify-between gap-3 px-5 pt-4 pb-3 border-b border-charcoal-800/70">
+        <header className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-4 pb-3 border-b border-charcoal-800/70">
           {title && <h2 className="text-sm font-bold text-white">{title}</h2>}
           {action}
         </header>
       )}
-      <div className="p-5">{children}</div>
+      <div className="p-4 sm:p-5">{children}</div>
     </section>
   );
 }
@@ -130,12 +130,12 @@ export function StatCard({ label, value, hint, icon: Icon, tone = 'default' }: {
     blue: 'text-sky-400 bg-sky-500/10',
   };
   return (
-    <div className="rounded-2xl border border-charcoal-800 bg-charcoal-900/70 p-4">
-      <div className="flex items-center justify-between mb-3">
+    <div className="rounded-2xl border border-charcoal-800 bg-charcoal-900/70 p-3.5 sm:p-4">
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-charcoal-400">{label}</span>
-        {Icon && <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${tones[tone]}`}><Icon className="w-4 h-4" /></span>}
+        {Icon && <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center ${tones[tone]}`}><Icon className="w-4 h-4" /></span>}
       </div>
-      <div className="text-2xl font-black text-white tabular-nums">{value}</div>
+      <div className="text-xl sm:text-2xl font-black text-white tabular-nums truncate">{value}</div>
       {hint && <div className="text-[11px] text-charcoal-400 mt-1">{hint}</div>}
     </div>
   );
@@ -143,7 +143,7 @@ export function StatCard({ label, value, hint, icon: Icon, tone = 'default' }: {
 
 export function EmptyState({ title, text, icon: Icon = Inbox, action }: { title: string; text?: string; icon?: React.ElementType; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-12 px-4">
+    <div className="flex flex-col items-center justify-center text-center py-10 sm:py-12 px-4">
       <div className="w-12 h-12 rounded-2xl bg-charcoal-800 flex items-center justify-center text-charcoal-400 mb-3"><Icon className="w-6 h-6" /></div>
       <p className="text-sm font-bold text-white">{title}</p>
       {text && <p className="text-xs text-charcoal-400 mt-1 max-w-sm">{text}</p>}
@@ -191,7 +191,7 @@ export function Field({ label, children, hint, error }: { label: string; childre
   );
 }
 
-export const inputCls = 'w-full bg-charcoal-950 border border-charcoal-700 rounded-xl px-3 py-2 text-xs text-white placeholder-charcoal-500 focus:outline-none focus:border-fire-500 focus:ring-2 focus:ring-fire-500/20 transition';
+export const inputCls = 'w-full bg-charcoal-950 border border-charcoal-700 rounded-xl px-3 py-2.5 sm:py-2 text-base sm:text-xs text-white placeholder-charcoal-500 focus:outline-none focus:border-fire-500 focus:ring-2 focus:ring-fire-500/20 transition';
 
 export function Modal({ open, onClose, title, children, footer, size = 'md' }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode; footer?: React.ReactNode; size?: 'sm' | 'md' | 'lg' | 'xl' }) {
   const onKey = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }, [onClose]);

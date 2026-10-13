@@ -26,7 +26,7 @@ export function Hero() {
         <div className="absolute -bottom-32 left-1/2 h-72 w-[120%] -translate-x-1/2 animate-ember rounded-[100%] bg-fire-700/25 blur-3xl" />
       </div>
 
-      <div className="mx-auto w-full max-w-7xl px-5 pb-16 pt-32 sm:px-8 sm:pb-24 lg:pb-28">
+      <div className="mx-auto w-full max-w-7xl px-5 pb-14 pt-28 sm:px-8 sm:pb-24 sm:pt-32 lg:pb-28">
         <div className="max-w-3xl">
           {status && (
             <p
@@ -42,7 +42,7 @@ export function Hero() {
 
           <h1
             id="hero-title"
-            className="mt-6 animate-fade-up font-display text-[2.9rem] font-medium leading-[0.98] tracking-tight text-bone [animation-delay:120ms] sm:text-7xl lg:text-[5.5rem]"
+            className="mt-5 animate-fade-up font-display text-[2.45rem] font-medium leading-[1.02] tracking-tight text-bone [animation-delay:120ms] sm:mt-6 sm:text-6xl lg:text-[5.25rem]"
           >
             Pollos a la brasa
             <br />
@@ -50,12 +50,12 @@ export function Hero() {
             <br className="hidden sm:block" /> a pura leña y carbón.
           </h1>
 
-          <p className="mt-6 max-w-xl animate-fade-up text-base leading-relaxed text-charcoal-200 [animation-delay:240ms] sm:text-lg">
+          <p className="mt-5 max-w-xl animate-fade-up text-sm leading-relaxed text-charcoal-200 [animation-delay:240ms] sm:mt-6 sm:text-lg">
             Asados despacio sobre brasas de quebracho y anchico, adobados con chimichurri casero, limón y ají molido. Piel dorada crocante y carne jugosa para compartir en Río Cuarto.
           </p>
 
-          <div className="mt-9 flex animate-fade-up flex-col gap-3 [animation-delay:360ms] sm:flex-row">
-            <a href="#carta" className="btn-primary px-8 py-4 text-base">
+          <div className="mt-8 grid animate-fade-up grid-cols-1 gap-3 [animation-delay:360ms] sm:mt-9 sm:flex sm:flex-row">
+            <a href="#carta" className="btn-primary px-7 py-3.5 text-base sm:px-8 sm:py-4">
               Pedir ahora
               <ArrowDown className="h-4 w-4" aria-hidden="true" />
             </a>
@@ -63,7 +63,7 @@ export function Hero() {
               href={whatsappLink('Hola Los Campeones, quiero hacer un pedido.')}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-ghost px-8 py-4 text-base"
+              className="btn-ghost px-7 py-3.5 text-base sm:px-8 sm:py-4"
             >
               <WhatsAppIcon className="h-5 w-5 text-emerald-400" />
               WhatsApp
