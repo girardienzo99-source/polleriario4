@@ -2,8 +2,8 @@
 
 import React, { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { Search, Trash2, Plus, Minus, Printer, FileText, Store, Lock, X, ChefHat } from 'lucide-react';
-import { Product, ProductVariant, PaymentMethod } from '@/types/database';
+import { Search, Trash2, Plus, Minus, Printer, FileText, Store, Lock, X, ChefHat, History } from 'lucide-react';
+import { Product, ProductVariant, PaymentMethod, Sale } from '@/types/database';
 import { PolleriaStore, costOf } from '@/lib/data/storage';
 import { formatARS } from '@/lib/formatters';
 import { computeCartTotals, MAX_DISCOUNT_PERCENT } from '@/lib/domain/pricing';
@@ -46,13 +46,15 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
   const [variantFor, setVariantFor] = useState<Product | null>(null);
   const [sendToKitchen, setSendToKitchen] = useState(true);
   const [kitchenNotes, setKitchenNotes] = useState('');
+  const [showRecent, setShowRecent] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const { products, categories, customers, cash } = useMemo(() => ({
+  const { products, categories, customers, cash, sales } = useMemo(() => ({
     products: PolleriaStore.getProducts().filter(p => p.active),
     categories: PolleriaStore.getCategories().filter(c => c.active),
     customers: PolleriaStore.getCustomers(),
     cash: PolleriaStore.getCashSession(),
+    sales: PolleriaStore.getSales(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [v]);
 
@@ -230,7 +232,14 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
             <h2 className="text-sm font-black text-white flex items-center gap-2"><Store className="w-4 h-4 text-fire-400" /> Venta de mostrador</h2>
             <p className="text-[11px] text-charcoal-400">{cashOpen ? `Caja abierta por ${cash.user_name}` : 'Caja cerrada'}</p>
           </div>
-          {resolved.length > 0 && <Button variant="ghost" onClick={reset}><Trash2 className="w-3.5 h-3.5" /> Vaciar</Button>}
+          <div className="flex items-center gap-1.5">
+            {sales.length > 0 && (
+              <Button variant="ghost" onClick={() => setShowRecent(true)} title="Ver últimas ventas y reimprimir tickets">
+                <History className="w-3.5 h-3.5" /> Recientes ({sales.length})
+              </Button>
+            )}
+            {resolved.length > 0 && <Button variant="ghost" onClick={reset}><Trash2 className="w-3.5 h-3.5" /> Vaciar</Button>}
+          </div>
         </div>
 
         {!cashOpen && (
@@ -352,6 +361,51 @@ export const PosView: React.FC<{ onPrintTicket: (props: ThermalReceiptProps) => 
             </button>
           ))}
           <button onClick={() => setVariantFor(null)} className="w-full text-xs text-charcoal-400 py-2 flex items-center justify-center gap-1"><X className="w-3 h-3" /> Cancelar</button>
+        </div>
+      </Modal>
+
+      <Modal open={showRecent} onClose={() => setShowRecent(false)} title="Ventas recientes" size="md">
+        <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+          {sales.slice(0, 15).map((s: Sale) => (
+            <div key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-charcoal-800 bg-charcoal-950 p-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-white">{s.sale_number}</span>
+                  <Badge tone={s.fiscal_status === 'autorizado' ? 'green' : s.fiscal_status === 'pendiente' ? 'amber' : 'default'}>
+                    {s.fiscal_status === 'no_fiscal' ? 'Ticket interno' : s.fiscal_status}
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-charcoal-400 truncate mt-0.5">
+                  {s.customer_name || 'Consumidor Final'} · {PAYMENTS.find(p => p.id === s.payment_method)?.label ?? s.payment_method}
+                </p>
+                <p className="text-[10px] text-charcoal-500 truncate">
+                  {s.items.map(i => `${i.quantity}× ${i.description}`).join(', ')}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-sm font-black text-fire-400 tabular-nums">{formatARS(s.total)}</span>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    onPrintTicket({
+                      type: 'commercial',
+                      orderNumber: s.sale_number,
+                      date: s.created_at,
+                      customerName: s.customer_name,
+                      paymentMethod: PAYMENTS.find(p => p.id === s.payment_method)?.label ?? s.payment_method,
+                      items: s.items.map(i => ({ name: i.description, quantity: i.quantity, unitPrice: i.unit_price, subtotal: i.subtotal })),
+                      subtotal: s.subtotal,
+                      discount: s.discount,
+                      total: s.total,
+                    });
+                    setShowRecent(false);
+                  }}
+                >
+                  <Printer className="w-3.5 h-3.5" /> Ticket
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       </Modal>
     </div>

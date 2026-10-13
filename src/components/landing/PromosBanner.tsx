@@ -84,6 +84,14 @@ export function PromosBanner() {
             const image = promo.image_url || product?.image_url;
             const coupon = promo.coupon_code ? findCoupon(promo.coupon_code) : null;
             const couponApplied = coupon && couponCode === coupon.code;
+            const comboLabels = product?.combo_items
+              ?.map(ci => {
+                const comp = catalog.products.find(p => p.id === ci.product_id);
+                if (!comp) return null;
+                const v = ci.variant_id ? comp.variants?.find(x => x.id === ci.variant_id) : undefined;
+                return `${ci.quantity}× ${comp.name}${v ? ` (${v.name})` : ''}`;
+              })
+              .filter((x): x is string => Boolean(x)) ?? [];
 
             return (
               <article
@@ -96,7 +104,7 @@ export function PromosBanner() {
                 {image && (
                   <Image
                     src={image}
-                    alt=""
+                    alt={promo.name}
                     fill
                     sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                     className={cx('-z-10 object-cover transition duration-[1200ms] ease-out group-hover:scale-105', !available && 'grayscale-[60%]')}
@@ -106,19 +114,39 @@ export function PromosBanner() {
 
                 <div className="absolute left-6 top-6 flex flex-wrap gap-2 sm:left-8 sm:top-8">
                   {product && savings > 0 && (
-                    <span className="rounded-full bg-fire-600 px-3 py-1 text-xs font-semibold text-white">Ahorrás {formatARS(savings)}</span>
+                    <span className="rounded-full bg-fire-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">Ahorrás {formatARS(savings)}</span>
                   )}
                   {coupon && (
-                    <span className="rounded-full bg-crimson-700 px-3 py-1 text-xs font-semibold text-white">{coupon.percent}% OFF online</span>
+                    <span className="rounded-full bg-crimson-700 px-3 py-1 text-xs font-semibold text-white shadow-sm">{coupon.percent}% OFF online</span>
                   )}
                 </div>
 
                 <h3 className="font-display text-3xl font-medium leading-tight text-bone">{promo.name}</h3>
-                {promo.description && <p className="mt-2 text-sm leading-relaxed text-charcoal-300">{promo.description}</p>}
+                {promo.description && <p className="mt-2 text-sm leading-relaxed text-charcoal-200">{promo.description}</p>}
+
+                {comboLabels.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Incluye">
+                    {comboLabels.map(label => (
+                      <span
+                        key={label}
+                        className="rounded-full border border-white/15 bg-charcoal-950/70 px-2.5 py-0.5 text-[11px] font-medium text-bone/90 backdrop-blur-sm"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {product && (
                   <div className="mt-6 flex items-center justify-between gap-4">
-                    <p className="font-display text-3xl tabular-nums text-fire-300">{formatARS(price)}</p>
+                    <div>
+                      {savings > 0 && (
+                        <p className="text-xs font-medium text-charcoal-400 line-through tabular-nums">
+                          {formatARS(price + savings)}
+                        </p>
+                      )}
+                      <p className="font-display text-3xl tabular-nums text-fire-300">{formatARS(price)}</p>
+                    </div>
                     <button
                       type="button"
                       disabled={!available}

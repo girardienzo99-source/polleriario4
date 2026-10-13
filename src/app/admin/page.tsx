@@ -9,7 +9,7 @@ import { AdminTopNav } from '@/components/admin/AdminTopNav';
 import { ThermalModal } from '@/components/admin/ThermalModal';
 import { ThermalReceiptProps } from '@/components/common/ThermalReceipt';
 import { Toaster } from '@/components/admin/ui';
-import { canAccess, defaultModule } from '@/lib/domain/permissions';
+import { canAccess, defaultModule, ALL_MODULES } from '@/lib/domain/permissions';
 
 // Views
 import { PosView } from '@/components/admin/views/PosView';
@@ -51,6 +51,25 @@ function AdminContent() {
     const next = canAccess(role, wanted) ? wanted : defaultModule(role);
     if (next !== activeTab) setActiveTab(next);
   }, [tabParam, role, activeTab]);
+
+  // Atajos de teclado Alt+1 .. Alt+8 para cambiar rápido de módulo
+  useEffect(() => {
+    if (!role) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      const idx = Number(e.key) - 1;
+      if (idx >= 0 && idx < ALL_MODULES.length) {
+        const mod = ALL_MODULES[idx];
+        if (canAccess(role, mod)) {
+          e.preventDefault();
+          setActiveTab(mod);
+          router.push(`/admin?tab=${mod}`, { scroll: false });
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [role, router]);
 
   if (!isReady || !isAuthenticated || !role) return <FullScreenLoader text="Verificando sesión…" />;
 

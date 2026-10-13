@@ -13,7 +13,9 @@ import { cx } from './ui';
 export function CartDrawer() {
   const {
     isCartOpen,
+    openCart,
     closeCart,
+    isCheckoutOpen,
     openCheckout,
     lines,
     itemCount,
@@ -45,7 +47,30 @@ export function CartDrawer() {
       .slice(0, 3);
   }, [catalog?.products, inCartProductIds]);
 
-  if (!isCartOpen) return null;
+  if (!isCartOpen) {
+    if (isCheckoutOpen || itemCount === 0) return null;
+    return (
+      <div className="fixed inset-x-4 bottom-4 z-40 sm:hidden">
+        <button
+          type="button"
+          onClick={openCart}
+          aria-label={`Ver pedido (${itemCount} productos, total ${formatARS(totals.total)})`}
+          className="flex w-full items-center justify-between rounded-2xl border border-fire-400/30 bg-fire-600 px-5 py-3.5 text-white shadow-2xl shadow-fire-950/80 transition active:scale-[0.99]"
+        >
+          <span className="flex items-center gap-3">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-charcoal-950/30 text-xs font-bold tabular-nums">
+              {itemCount}
+            </span>
+            <span className="text-sm font-semibold">Ver tu pedido</span>
+          </span>
+          <span className=" flex items-center gap-2 font-display text-lg font-semibold tabular-nums">
+            {formatARS(totals.total)}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </span>
+        </button>
+      </div>
+    );
+  }
 
   const submitCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +132,7 @@ export function CartDrawer() {
                   return (
                     <li key={l.key} className={cx('flex gap-4 rounded-2xl border p-3', l.available ? 'border-white/[0.06] bg-charcoal-900/60' : 'border-crimson-500/40 bg-crimson-950/30')}>
                       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-charcoal-800">
-                        <Image src={l.product.image_url} alt="" fill sizes="80px" className="object-cover" />
+                        <Image src={l.product.image_url} alt={l.displayName} fill sizes="80px" className="object-cover" />
                       </div>
                       <div className="flex min-w-0 flex-1 flex-col">
                         <div className="flex items-start justify-between gap-2">
@@ -172,7 +197,7 @@ export function CartDrawer() {
                       <div key={s.id} className="flex items-center justify-between gap-3 bg-charcoal-950/70 border border-white/[0.04] rounded-xl p-2">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-charcoal-800">
-                            <Image src={s.image_url} alt="" fill sizes="40px" className="object-cover" />
+                            <Image src={s.image_url} alt={s.name} fill sizes="40px" className="object-cover" />
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-bone truncate">{s.name}</p>

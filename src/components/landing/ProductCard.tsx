@@ -26,6 +26,25 @@ export function ProductCard({ product, products, priority = false }: { product: 
   const selectionAvailable = max > 0;
   const price = unitPriceOf(product, variant);
 
+  const comboInfo = React.useMemo(() => {
+    if (!product.combo_items?.length) return { savings: 0, labels: [] as string[] };
+    let separate = 0;
+    const labels: string[] = [];
+    for (const ci of product.combo_items) {
+      const comp = products.find(p => p.id === ci.product_id && p.active);
+      if (!comp) continue;
+      const v = ci.variant_id ? comp.variants?.find(x => x.id === ci.variant_id) : undefined;
+      separate += unitPriceOf(comp, v) * ci.quantity;
+      labels.push(`${ci.quantity}× ${comp.name}${v ? ` (${v.name})` : ''}`);
+    }
+    return {
+      savings: Math.max(0, Math.round(separate - product.sale_price)),
+      labels,
+    };
+  }, [product, products]);
+
+  const showLowStock = !soldOut && product.stock_mode !== 'none' && max > 0 && max <= 4;
+
   // Si el stock baja, ajustar la cantidad elegida.
   useEffect(() => {
     if (max > 0 && qty > max) setQty(max);
@@ -55,27 +74,61 @@ export function ProductCard({ product, products, priority = false }: { product: 
           )}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/60 via-transparent to-transparent" />
-        {soldOut ? (
-          <span className="absolute left-4 top-4 rounded-full bg-charcoal-950/85 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-charcoal-200 backdrop-blur">
-            Agotado
-          </span>
-        ) : (
-          product.is_featured && (
-            <span className="absolute left-4 top-4 rounded-full bg-fire-600/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white backdrop-blur">
-              De la casa
+        <div className="absolute left-4 right-4 top-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {soldOut ? (
+              <span className="rounded-full bg-charcoal-950/85 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-charcoal-200 backdrop-blur">
+                Agotado
+              </span>
+            ) : (
+              product.is_featured && (
+                <span className="rounded-full bg-fire-600/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white backdrop-blur">
+                  De la casa
+                </span>
+              )
+            )}
+            {!soldOut && comboInfo.savings > 0 && (
+              <span className="rounded-full bg-emerald-600/90 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur">
+                Ahorrás {formatARS(comboInfo.savings)}
+              </span>
+            )}
+          </div>
+          {showLowStock && (
+            <span className="rounded-full bg-amber-500/90 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-charcoal-950 backdrop-blur">
+              Últimas {max}
             </span>
-          )
-        )}
+          )}
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <h3 className="font-display text-[1.35rem] font-medium leading-tight text-bone">{product.name}</h3>
-          <p className="shrink-0 font-display text-xl tabular-nums text-fire-300" aria-label={`Precio ${formatARS(price)}`}>
-            {formatARS(price)}
-          </p>
+          <div className="shrink-0 text-right">
+            {comboInfo.savings > 0 && (
+              <p className="text-[11px] font-medium text-charcoal-500 line-through tabular-nums">
+                {formatARS(price + comboInfo.savings)}
+              </p>
+            )}
+            <p className="font-display text-xl tabular-nums text-fire-300" aria-label={`Precio ${formatARS(price)}`}>
+              {formatARS(price)}
+            </p>
+          </div>
         </div>
         {product.description && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-charcoal-400">{product.description}</p>}
+
+        {comboInfo.labels.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Incluye">
+            {comboInfo.labels.map(label => (
+              <span
+                key={label}
+                className="rounded-full border border-white/[0.08] bg-charcoal-950/60 px-2.5 py-0.5 text-[11px] font-medium text-charcoal-300"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
 
         {variants.length > 1 && (
           <div className="mt-4 flex flex-wrap gap-2" role="radiogroup" aria-label={`Opciones de ${product.name}`}>
@@ -141,8 +194,8 @@ export function ProductCard({ product, products, priority = false }: { product: 
           >
             {selectionAvailable ? (
               <>
-                <ShoppingBag className="h-4 w-4" aria-hidden="true" />
-                Agregar
+                <ShoppingBag className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">{qty > 1 ? `Agregar · ${formatARS(price * qty)}` : 'Agregar'}</span>
               </>
             ) : (
               'Agotado'

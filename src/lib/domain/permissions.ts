@@ -16,7 +16,7 @@ export type ModuleId =
   | 'arca'
   | 'settings';
 
-const ALL: ModuleId[] = [
+export const ALL_MODULES: ModuleId[] = [
   'pos',
   'kitchen',
   'products',
@@ -26,6 +26,8 @@ const ALL: ModuleId[] = [
   'arca',
   'settings',
 ];
+
+const ALL = ALL_MODULES;
 
 export const ROLE_MODULES: Record<Role, ModuleId[]> = {
   admin: ALL,

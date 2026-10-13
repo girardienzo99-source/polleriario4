@@ -2,10 +2,11 @@
 
 import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Menu, Clock, Store, Bell, Wallet, ExternalLink } from 'lucide-react';
+import { Menu, Clock, Store, Bell, Wallet, ExternalLink, AlertTriangle, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { PolleriaStore } from '@/lib/data/storage';
 import { canAccess, ModuleId } from '@/lib/domain/permissions';
+import { formatARS } from '@/lib/formatters';
 import { useStoreValue, useNow, toast } from './ui';
 
 interface AdminTopNavProps {
@@ -37,10 +38,19 @@ export const AdminTopNav: React.FC<AdminTopNavProps> = ({ onOpenMobileSidebar, o
   const { role } = useAuth();
   const now = useNow(30_000);
   const orders = useStoreValue(() => PolleriaStore.getOrders(), []);
+  const sales = useStoreValue(() => PolleriaStore.getSales(), []);
+  const products = useStoreValue(() => PolleriaStore.getProducts(), []);
+  const ingredients = useStoreValue(() => PolleriaStore.getIngredients(), []);
   const cashOpen = useStoreValue(() => PolleriaStore.isCashOpen(), false);
 
   const newOrders = orders.filter(o => o.status === 'recibido');
   const active = orders.filter(o => ['recibido', 'confirmado', 'en_preparacion'].includes(o.status));
+
+  const lowStockCount =
+    products.filter(p => p.active && p.stock_mode !== 'none' && p.current_stock <= p.min_stock).length +
+    ingredients.filter(i => i.current_stock <= i.min_stock).length;
+
+  const salesTotal = sales.reduce((acc, s) => acc + s.total, 0);
 
   // Aviso de pedido nuevo (llega desde la tienda en otra pestaña vía evento storage)
   const prevNew = useRef<number | null>(null);
@@ -69,11 +79,34 @@ export const AdminTopNav: React.FC<AdminTopNavProps> = ({ onOpenMobileSidebar, o
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
-        <div className="hidden md:flex items-center gap-1.5 text-xs text-charcoal-400 font-medium tabular-nums" suppressHydrationWarning>
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="hidden xl:flex items-center gap-1.5 text-xs text-charcoal-400 font-medium tabular-nums" suppressHydrationWarning>
           <Clock className="w-3.5 h-3.5 text-fire-500" />
           <span>{clock}</span>
         </div>
+
+        {canAccess(role, 'pos') && sales.length > 0 && (
+          <button
+            onClick={() => onNavigateToTab('pos')}
+            title="Ventas registradas"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-charcoal-900 border border-charcoal-800 text-charcoal-200 hover:border-charcoal-700 transition tabular-nums"
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{sales.length} vta{sales.length === 1 ? '' : 's'} · {formatARS(salesTotal)}</span>
+          </button>
+        )}
+
+        {canAccess(role, 'stock') && lowStockCount > 0 && (
+          <button
+            onClick={() => onNavigateToTab('stock')}
+            title={`${lowStockCount} ítems con stock bajo o crítico`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Stock bajo</span>
+            <span className="px-1.5 rounded-full bg-amber-500/20 text-amber-200 font-black text-[11px]">{lowStockCount}</span>
+          </button>
+        )}
 
         {canAccess(role, 'cash') && (
           <button

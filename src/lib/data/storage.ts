@@ -210,7 +210,16 @@ export const PolleriaStore = {
   },
 
   getProducts(): Product[] {
-    return getItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
+    const items = getItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
+    return items.map(p => {
+      if (p.id === 'prod-combo-campeon' && p.image_url === '/images/combo-campeon.jpg') {
+        return { ...p, image_url: '/images/combo-brasa.jpg' };
+      }
+      if (p.id === 'prod-combo-familiar' && p.image_url === '/images/combo-familiar.jpg') {
+        return { ...p, image_url: '/images/parrillada-completa.jpg' };
+      }
+      return p;
+    });
   },
   saveProduct(product: Product): void {
     if (!product.name.trim()) throw new Error('El producto necesita un nombre');
@@ -717,7 +726,16 @@ export const PolleriaStore = {
 
   // ---------------------------------------------------------------- promociones
   getPromotions(): Promotion[] {
-    return getItem<Promotion[]>(STORAGE_KEYS.PROMOTIONS, INITIAL_PROMOTIONS);
+    const items = getItem<Promotion[]>(STORAGE_KEYS.PROMOTIONS, INITIAL_PROMOTIONS);
+    return items.map(p => {
+      if (p.id === 'promo-1' && p.image_url === '/images/combo-campeon.jpg') {
+        return { ...p, image_url: '/images/combo-brasa.jpg' };
+      }
+      if (p.id === 'promo-2' && p.image_url === '/images/combo-familiar.jpg') {
+        return { ...p, image_url: '/images/parrillada-completa.jpg' };
+      }
+      return p;
+    });
   },
   savePromotion(promo: Promotion): void {
     if (!promo.name.trim()) throw new Error('La promoción necesita un nombre');
